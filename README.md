@@ -124,7 +124,7 @@ https://zrnge.github.io/LogLens/
 
 ### Option 3 — Clone and use
 ```bash
-git clone https://github.com/Zrng/LogLens.git
+git clone https://github.com/zrnge/LogLens.git
 cd LogLens
 # Just open LogLens.html in a browser
 start LogLens.html       # Windows
@@ -228,8 +228,6 @@ level:ERROR AND service:api-gateway AND latency_ms:>=500 AND NOT method:OPTIONS
 3. Source: **Deploy from branch** → `main` → `/ (root)`
 4. Save — your site goes live at `https://zrnge.github.io/LogLens/`
 
-Update the badge links in this README with your actual username and repo name.
-
 ---
 
 ## 🏗️ Architecture
@@ -270,9 +268,9 @@ LogLens is architecturally incapable of sending your data anywhere:
 
 ## 👨‍💻 Developer
 
-Built by **[Zrng](https://github.com/Zrng)** — open source, free forever.
+Built by **[zrnge](https://github.com/zrnge)** — open source, free forever.
 
-[![GitHub](https://img.shields.io/badge/GitHub-Zrng-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Zrng)
+[![GitHub](https://img.shields.io/badge/GitHub-zrnge-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/zrnge)
 [![LogLens Live](https://img.shields.io/badge/🔬_LogLens-Live_App-00d4ff?style=for-the-badge)](https://zrnge.github.io/LogLens/)
 
 ---
@@ -285,11 +283,11 @@ MIT — free to use, modify, and distribute.
 
 <div align="center">
 
-**🔬 LogLens 2.0** — built by [Zrng](https://github.com/Zrng) for engineers who believe their logs are their own business.
+**🔬 LogLens 2.0** — built by [zrnge](https://github.com/zrnge) for engineers who believe their logs are their own business.
 
 *Don't spend money to analyze your logs.*
 *Do it all free, on your machine, locally — no data ever leaves your browser.*
 
-[![Star on GitHub](https://img.shields.io/github/stars/Zrng/LogLens?style=social)](https://github.com/Zrng/LogLens)
+[![Star on GitHub](https://img.shields.io/github/stars/zrnge/LogLens?style=social)](https://github.com/zrnge/LogLens)
 
 </div>
