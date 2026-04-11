@@ -221,15 +221,6 @@ level:ERROR AND service:api-gateway AND latency_ms:>=500 AND NOT method:OPTIONS
 
 ---
 
-## 🚢 Deploying to GitHub Pages
-
-1. Fork or push this repo to GitHub
-2. Go to **Settings → Pages**
-3. Source: **Deploy from branch** → `main` → `/ (root)`
-4. Save — your site goes live at `https://zrnge.github.io/LogLens/`
-
----
-
 ## 🏗️ Architecture
 
 LogLens is intentionally a **single HTML file** (~2,500 lines). No build step, no npm, no dependencies, no CDN (except optional Google Fonts for the UI font — falls back to system monospace).
