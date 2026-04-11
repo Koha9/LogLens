@@ -1,0 +1,2678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogLens · Universal Log Explorer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── THEME VARIABLES ─────────────────────────────────────────────────────── */
+:root {
+  --bg:#070b12;--surface:#0d1420;--surface2:#121b2b;--surface3:#182233;
+  --border:#1e2d42;--border2:#243447;
+  --accent:#00d4ff;--accent2:#0099cc;--accent-glow:rgba(0,212,255,0.15);
+  --green:#00ff88;--yellow:#ffd700;--red:#ff4d6d;--orange:#ff8c42;--purple:#b06dff;
+  --text:#c8d8e8;--text-dim:#5a7a94;--text-bright:#e8f4ff;
+  --mono:'JetBrains Mono','Cascadia Code','Fira Code',monospace;
+  --display:'Syne',system-ui,sans-serif;
+  --row-h:26px;
+}
+.light {
+  --bg:#f0f4f8;--surface:#fff;--surface2:#f5f8fc;--surface3:#edf1f7;
+  --border:#d0dae8;--border2:#b8c8d8;
+  --accent:#0077cc;--accent2:#005599;--accent-glow:rgba(0,119,204,0.1);
+  --green:#007744;--yellow:#996600;--red:#cc2244;--orange:#cc5500;--purple:#6633cc;
+  --text:#1a2a3a;--text-dim:#607080;--text-bright:#0a1520;
+}
+/* ── RESET ───────────────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;transition:background .2s,color .2s}
+/* ── SCROLLBAR ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent2)}
+/* ── TOP BAR ─────────────────────────────────────────────────────────────── */
+.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;min-height:44px}
+.logo{font-family:var(--display);font-size:18px;font-weight:800;color:var(--accent);
+  letter-spacing:-0.5px;white-space:nowrap;user-select:none}
+.logo span{color:var(--text-dim);font-weight:400}
+.logo sub{font-size:9px;color:var(--text-dim);font-family:var(--mono);vertical-align:baseline;margin-left:2px}
+.vdiv{width:1px;height:26px;background:var(--border2);flex-shrink:0}
+.stats-bar{display:flex;gap:14px;flex:1;flex-wrap:wrap;align-items:center}
+.stat{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);white-space:nowrap}
+.stat-val{color:var(--text-bright);font-weight:600}
+.stat-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.topbar-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+/* ── BUTTONS ─────────────────────────────────────────────────────────────── */
+.btn{padding:5px 12px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--mono);font-size:11px;
+  cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+.btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+.btn.icon{padding:5px 8px;font-size:14px}
+.btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.btn-group{display:flex;gap:0}
+.btn-group .btn{border-radius:0}
+.btn-group .btn:first-child{border-radius:4px 0 0 4px}
+.btn-group .btn:last-child{border-radius:0 4px 4px 0}
+/* ── TIMELINE ────────────────────────────────────────────────────────────── */
+.timeline-wrap{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);
+  padding:4px 16px 4px;display:flex;align-items:center;gap:10px}
+.timeline-wrap.hidden{display:none}
+#timelineCanvas{flex:1;height:54px;cursor:crosshair;border-radius:3px;display:block}
+.timeline-label{font-size:10px;color:var(--text-dim);white-space:nowrap;width:130px;flex-shrink:0}
+.timeline-reset{font-size:10px;padding:3px 8px}
+/* ── KQL BAR ─────────────────────────────────────────────────────────────── */
+.kql-bar{padding:8px 16px 6px;background:var(--surface);border-bottom:2px solid var(--border);flex-shrink:0}
+.kql-row{display:flex;gap:6px;align-items:flex-start}
+.kql-label{font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;
+  margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.kql-textarea{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:4px;
+  color:var(--green);font-family:var(--mono);font-size:13px;padding:8px 12px;
+  resize:none;height:38px;outline:none;transition:border-color .15s;overflow:hidden}
+.kql-textarea:focus{border-color:var(--accent);height:auto;overflow:auto}
+.kql-textarea::placeholder{color:var(--text-dim)}
+.kql-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;align-items:center}
+.chip{padding:2px 10px;border-radius:10px;background:var(--surface2);border:1px solid var(--border2);
+  color:var(--accent);font-size:10px;cursor:pointer;transition:all .12s;white-space:nowrap}
+.chip:hover{background:var(--accent);color:#000;border-color:var(--accent)}
+.chip.saved{color:var(--yellow);border-color:rgba(255,215,0,0.3)}
+.chip.saved:hover{background:var(--yellow);color:#000}
+.chip.history{color:var(--text-dim);border-color:var(--border)}
+.chip.history:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+/* ── MAIN LAYOUT ─────────────────────────────────────────────────────────── */
+.main{display:flex;flex:1;overflow:hidden}
+/* ── SIDEBAR ─────────────────────────────────────────────────────────────── */
+.sidebar{width:220px;min-width:150px;max-width:400px;background:var(--surface);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  flex-shrink:0;overflow:hidden;position:relative;user-select:none}
+.sidebar-resize{position:absolute;right:0;top:0;bottom:0;width:4px;cursor:col-resize;z-index:5}
+.sidebar-resize:hover,.sidebar-resize:active{background:var(--accent);opacity:.5}
+.sidebar-nav{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.snav-btn{flex:1;padding:6px 4px;font-size:9px;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--text-dim);cursor:pointer;text-align:center;transition:all .15s;border:none;
+  background:none;border-bottom:2px solid transparent;font-family:var(--mono)}
+.snav-btn:hover{color:var(--text)}
+.snav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sidebar-body{overflow-y:auto;flex:1;padding:8px 0}
+.sb-section{padding:8px 12px;border-bottom:1px solid var(--border)}
+.sb-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:6px}
+/* Time range quick buttons */
+.time-quick{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.tq-btn{padding:2px 7px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);
+  color:var(--text-dim);font-size:10px;cursor:pointer;transition:all .12s;font-family:var(--mono)}
+.tq-btn:hover,.tq-btn.active{border-color:var(--accent);color:var(--accent)}
+.time-custom{display:flex;flex-direction:column;gap:4px}
+.time-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  color:var(--text);font-family:var(--mono);font-size:10px;padding:4px 6px;outline:none}
+.time-input:focus{border-color:var(--accent)}
+/* Level filter */
+.level-btn{display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:3px;
+  cursor:pointer;transition:background .1s;font-size:11px}
+.level-btn:hover{background:var(--surface2)}
+.level-btn.active{background:var(--accent-glow)}
+.level-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.level-label{flex:1}
+.level-count{color:var(--text-dim);font-size:10px}
+/* File list */
+.file-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px;font-size:11px}
+.file-item:hover{background:var(--surface2)}
+.file-icon{color:var(--accent);flex-shrink:0}
+.file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.file-size{font-size:10px;color:var(--text-dim);white-space:nowrap}
+.file-rm{font-size:12px;color:var(--text-dim);cursor:pointer;padding:0 2px;flex-shrink:0}
+.file-rm:hover{color:var(--red)}
+/* Fields */
+.field-search{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:5px 8px;outline:none;
+  margin-bottom:4px}
+.field-search:focus{border-color:var(--accent)}
+.field-item{padding:4px 6px;cursor:pointer;transition:background .1s;border-radius:3px}
+.field-item:hover{background:var(--surface2)}
+.field-item.expanded{background:var(--surface2)}
+.field-row{display:flex;align-items:center;gap:6px}
+.field-name{flex:1;font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field-type{font-size:9px;padding:1px 4px;border-radius:2px;background:var(--surface3);color:var(--text-dim);flex-shrink:0}
+.field-count{font-size:10px;color:var(--text-dim);flex-shrink:0}
+.field-dist{padding:4px 0 2px 0}
+.field-bar-row{display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:10px}
+.field-bar-label{color:var(--text-dim);width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.field-bar-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.field-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+.field-bar-n{color:var(--text-dim);width:30px;text-align:right;flex-shrink:0}
+/* ── LOG AREA ─────────────────────────────────────────────────────────────── */
+.log-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.log-toolbar{display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.result-info{font-size:11px;color:var(--text-dim);flex:1;white-space:nowrap}
+.result-info span{color:var(--accent)}
+.log-scroll{flex:1;overflow:auto;position:relative}
+.log-table{width:100%;border-collapse:collapse;min-width:600px}
+.log-table thead{position:sticky;top:0;z-index:10}
+.log-table th{background:var(--surface2);padding:6px 10px;text-align:left;font-size:10px;
+  color:var(--text-dim);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;font-weight:500}
+.log-table th:hover{color:var(--accent)}
+.log-table th.sorted{color:var(--accent)}
+.log-table td{padding:4px 10px;border-bottom:1px solid rgba(30,45,66,.5);border-right:1px solid rgba(30,45,66,.25);
+  vertical-align:top;font-size:12px;max-width:320px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;cursor:pointer;height:var(--row-h);line-height:18px}
+.wrap-mode .log-table td{white-space:pre-wrap;height:auto;max-height:120px;overflow:hidden}
+.log-table tr:hover td{background:rgba(0,212,255,.04)}
+.log-table tr.selected td{background:rgba(0,212,255,.09)}
+.log-table tr.marked td{border-left:2px solid var(--yellow)}
+.vs-spacer td{padding:0;border:none;height:1px}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;
+  font-weight:700;letter-spacing:.4px;white-space:nowrap}
+.badge-ERROR,.badge-ERR{background:rgba(255,77,109,.2);color:var(--red);border:1px solid rgba(255,77,109,.3)}
+.badge-CRITICAL,.badge-FATAL{background:rgba(255,77,109,.35);color:#fff;border:1px solid var(--red)}
+.badge-WARN,.badge-WARNING{background:rgba(255,215,0,.15);color:var(--yellow);border:1px solid rgba(255,215,0,.25)}
+.badge-INFO{background:rgba(0,212,255,.12);color:var(--accent);border:1px solid rgba(0,212,255,.2)}
+.badge-DEBUG{background:rgba(176,109,255,.12);color:var(--purple);border:1px solid rgba(176,109,255,.2)}
+.badge-TRACE{background:rgba(90,122,148,.15);color:var(--text-dim);border:1px solid rgba(90,122,148,.2)}
+.ts-val{color:var(--text-dim);font-size:11px}
+.ip-val{color:var(--green)}
+.num-val{color:var(--orange)}
+.highlight{background:rgba(255,215,0,.3);color:var(--yellow);border-radius:2px;padding:0 1px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 20px;color:var(--text-dim);gap:8px}
+.empty-icon{font-size:36px}
+/* ── DETAIL PANEL ─────────────────────────────────────────────────────────── */
+.detail-panel{width:400px;min-width:200px;background:var(--surface);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;transition:width .2s;position:relative}
+.detail-panel.closed{width:0;overflow:hidden;border:none}
+.detail-resize{position:absolute;left:0;top:0;bottom:0;width:4px;cursor:col-resize;z-index:5}
+.detail-resize:hover,.detail-resize:active{background:var(--accent);opacity:.5}
+.detail-header{display:flex;align-items:center;gap:6px;padding:8px 12px;
+  border-bottom:1px solid var(--border);flex-shrink:0}
+.detail-title{font-family:var(--display);font-size:13px;font-weight:700;color:var(--accent);flex:1}
+.detail-nav{display:flex;gap:4px;align-items:center}
+.detail-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.dtab{flex:1;padding:5px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--text-dim);cursor:pointer;text-align:center;border:none;background:none;
+  border-bottom:2px solid transparent;font-family:var(--mono);transition:all .15s}
+.dtab:hover{color:var(--text)}
+.dtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.detail-scroll{overflow-y:auto;flex:1;padding:8px 12px}
+.detail-field{display:grid;grid-template-columns:130px 1fr;gap:2px 8px;padding:5px 0;
+  border-bottom:1px solid rgba(30,45,66,.4);align-items:start}
+.detail-key{color:var(--text-dim);font-size:11px;padding-top:1px;word-break:break-all;cursor:pointer}
+.detail-key:hover{color:var(--accent)}
+.detail-val{color:var(--text-bright);font-size:11px;word-break:break-all;white-space:pre-wrap;
+  display:flex;align-items:flex-start;gap:4px}
+.detail-val-text{flex:1}
+.copy-btn{font-size:10px;color:var(--text-dim);cursor:pointer;opacity:0;transition:opacity .1s;
+  flex-shrink:0;padding:1px 3px}
+.detail-field:hover .copy-btn{opacity:1}
+.copy-btn:hover{color:var(--accent)}
+.raw-view{font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.6}
+/* JSON Tree */
+.jtree-node{margin:1px 0}
+.jtree-key{color:var(--text-dim);cursor:pointer}
+.jtree-key:hover{color:var(--accent)}
+.jtree-str{color:var(--green)}
+.jtree-num{color:var(--orange)}
+.jtree-bool{color:var(--purple)}
+.jtree-null{color:var(--text-dim);font-style:italic}
+.jtree-expand{cursor:pointer;user-select:none;color:var(--accent);font-size:10px}
+.jtree-children{margin-left:14px;border-left:1px solid var(--border);padding-left:6px}
+.jtree-children.collapsed{display:none}
+.detail-actions{display:flex;gap:5px;padding:8px 12px;border-top:1px solid var(--border);
+  flex-shrink:0;flex-wrap:wrap}
+/* ── UPLOAD OVERLAY ───────────────────────────────────────────────────────── */
+.upload-overlay{position:fixed;inset:0;background:rgba(7,11,18,.93);display:flex;
+  align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px)}
+.upload-box{border:2px dashed var(--border2);border-radius:14px;padding:50px 70px;
+  text-align:center;transition:border-color .2s;cursor:pointer;max-width:560px;width:90%}
+.upload-box.dragover{border-color:var(--accent);background:rgba(0,212,255,.04)}
+.upload-icon{font-size:52px;margin-bottom:14px}
+.upload-title{font-family:var(--display);font-size:24px;font-weight:800;color:var(--text-bright);margin-bottom:6px}
+.upload-sub{color:var(--text-dim);font-size:12px;margin-bottom:20px}
+.upload-formats{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.upload-format{padding:3px 10px;border:1px solid var(--border2);border-radius:10px;
+  font-size:10px;color:var(--text-dim)}
+.upload-privacy{font-size:10px;color:var(--green);margin-top:12px;opacity:.8}
+.upload-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+input[type=file]{display:none}
+/* Paste modal */
+.paste-textarea{width:100%;height:200px;background:var(--bg);border:1px solid var(--border2);
+  border-radius:4px;color:var(--text);font-family:var(--mono);font-size:12px;
+  padding:10px;outline:none;resize:vertical}
+.paste-textarea:focus{border-color:var(--accent)}
+/* ── MODALS ───────────────────────────────────────────────────────────────── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(7,11,18,.8);z-index:200;
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-backdrop.hidden{display:none}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:8px;
+  min-width:380px;max-width:600px;width:90%;max-height:80vh;display:flex;flex-direction:column}
+.modal-header{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border)}
+.modal-title{font-family:var(--display);font-weight:700;font-size:14px;color:var(--accent)}
+.modal-body{overflow-y:auto;padding:14px 16px;flex:1}
+.modal-footer{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
+/* Column picker */
+.col-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.col-item{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:4px;
+  cursor:pointer;transition:background .1s}
+.col-item:hover{background:var(--surface2)}
+.col-check{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+/* KBD help */
+.kbd-grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:center}
+kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px;
+  padding:1px 6px;font-family:var(--mono);font-size:11px;color:var(--text);white-space:nowrap}
+.kbd-desc{font-size:11px;color:var(--text-dim)}
+/* ── TOAST ────────────────────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:16px;right:16px;background:var(--surface2);
+  border:1px solid var(--border2);border-left:3px solid var(--accent);padding:8px 14px;
+  border-radius:4px;font-size:12px;color:var(--text);z-index:300;
+  opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+/* ── MISC UTILITY ─────────────────────────────────────────────────────────── */
+.hidden{display:none!important}
+.mark-star{color:var(--yellow);font-size:11px;margin-right:2px}
+.status-bar{display:flex;align-items:center;gap:12px;padding:3px 16px;
+  background:var(--surface);border-top:1px solid var(--border);font-size:10px;
+  color:var(--text-dim);flex-shrink:0}
+.status-bar a{color:var(--text-dim);text-decoration:none}
+.status-bar a:hover{color:var(--accent)}
+/* ── AI PANEL ─────────────────────────────────────────────────────────────── */
+.ai-panel-wrap{flex-shrink:0;background:var(--surface);border-top:2px solid var(--border);
+  display:flex;flex-direction:column;max-height:380px;min-height:220px;transition:max-height .25s}
+.ai-panel-wrap.collapsed{max-height:0;overflow:hidden;border:none}
+.ai-panel-header{display:flex;align-items:center;gap:8px;padding:6px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.ai-panel-title{font-family:var(--display);font-size:13px;font-weight:700;
+  color:var(--accent);white-space:nowrap}
+.ai-status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;
+  transition:background .3s}
+.ai-status-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.ai-status-dot.err{background:var(--red)}
+.ai-status-dot.spin{background:var(--yellow);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ai-status-text{font-size:10px;color:var(--text-dim);white-space:nowrap}
+.ai-model-wrap{display:flex;align-items:center;gap:4px;position:relative}
+.ai-model-input{background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:3px 24px 3px 7px;
+  outline:none;width:150px;min-width:100px}
+.ai-model-input:focus{border-color:var(--accent)}
+.ai-model-arrow{position:absolute;right:5px;top:50%;transform:translateY(-50%);
+  font-size:10px;color:var(--text-dim);cursor:pointer;pointer-events:none}
+.ai-model-list{position:absolute;top:calc(100% + 3px);left:0;min-width:180px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:4px;
+  z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.4);display:none;max-height:200px;overflow-y:auto}
+.ai-model-list.open{display:block}
+.ai-model-opt{padding:5px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;
+  color:var(--text);white-space:nowrap}
+.ai-model-opt:hover,.ai-model-opt.highlighted{background:var(--accent-glow);color:var(--accent)}
+.ai-quick{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.ai-qbtn{padding:3px 9px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);
+  color:var(--text-dim);font-size:10px;cursor:pointer;font-family:var(--mono);transition:all .12s;white-space:nowrap}
+.ai-qbtn:hover{border-color:var(--accent);color:var(--accent)}
+.ai-panel-body{display:flex;flex:1;overflow:hidden;min-height:0}
+.ai-messages{flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:6px}
+.ai-msg{padding:7px 10px;border-radius:5px;font-size:12px;line-height:1.6;max-width:100%;word-break:break-word}
+.ai-msg.user{background:var(--accent-glow);border:1px solid rgba(0,212,255,.2);align-self:flex-end;max-width:80%}
+.ai-msg.assistant{background:var(--surface2);border:1px solid var(--border);align-self:flex-start;max-width:95%}
+.ai-msg.system-note{background:transparent;border:none;color:var(--text-dim);font-size:11px;
+  font-style:italic;text-align:center;padding:4px}
+.ai-msg-role{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:3px}
+.ai-msg-content{white-space:pre-wrap}
+.ai-msg-content code{background:var(--surface3);border:1px solid var(--border2);border-radius:3px;
+  padding:0 4px;font-family:var(--mono);font-size:11px;color:var(--accent)}
+.ai-msg-content pre{background:var(--bg);border:1px solid var(--border2);border-radius:4px;
+  padding:8px;margin:4px 0;overflow-x:auto;font-size:11px}
+.ai-msg-content pre code{background:none;border:none;padding:0;color:var(--green)}
+.ai-thinking{display:flex;align-items:center;gap:4px;padding:4px 0}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce .9s infinite}
+.ai-dot:nth-child(2){animation-delay:.15s}
+.ai-dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+.ai-input-wrap{display:flex;gap:6px;padding:8px 14px;border-left:1px solid var(--border);
+  flex-direction:column;min-width:280px;max-width:320px;border-top:none;justify-content:flex-end}
+.ai-input{width:100%;flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:4px;
+  color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px;
+  resize:none;outline:none;min-height:70px;max-height:120px}
+.ai-input:focus{border-color:var(--accent)}
+.ai-send-row{display:flex;gap:6px;align-items:center}
+.ai-notice{background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);border-radius:6px;
+  padding:10px 14px;font-size:11px;color:var(--yellow);line-height:1.6;flex-shrink:0}
+.ai-notice code{color:var(--green);font-family:var(--mono)}
+.ai-url-input{background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:4px 8px;outline:none;width:200px}
+.ai-url-input:focus{border-color:var(--accent)}
+/* ── AI CONTEXT METER ──────────────────────────────────────────────────────── */
+.ai-ctx-meter{display:flex;align-items:center;gap:6px;flex:1;min-width:0}
+.ai-ctx-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;min-width:40px}
+.ai-ctx-fill{height:100%;border-radius:3px;transition:width .4s,background .4s}
+.ai-ctx-label{font-size:10px;color:var(--text-dim);white-space:nowrap;flex-shrink:0}
+.ai-ctx-warn{color:var(--yellow)!important}
+.ai-ctx-over{color:var(--red)!important}
+.ai-stop-btn{color:var(--red)!important;border-color:rgba(255,77,109,.5)!important}
+.ai-stop-btn:hover{background:rgba(255,77,109,.15)!important}
+/* num_ctx + log-count controls */
+.ai-ctx-sel{background:var(--bg);border:1px solid var(--border2);border-radius:3px;
+  color:var(--text-dim);font-family:var(--mono);font-size:10px;padding:2px 4px;outline:none;cursor:pointer}
+.ai-ctx-sel:focus{border-color:var(--accent)}
+/* KQL suggestion chips from AI */
+.ai-kql-chip{display:inline-block;background:var(--surface3);border:1px solid var(--border2);
+  border-radius:3px;padding:2px 8px;margin:2px;font-size:11px;color:var(--accent);
+  cursor:pointer;font-family:var(--mono)}
+.ai-kql-chip:hover{background:var(--accent);color:#000}
+</style>
+</head>
+<body>
+
+<!-- UPLOAD OVERLAY -->
+<div class="upload-overlay" id="uploadOverlay">
+  <div class="upload-box" id="uploadBox">
+    <div class="upload-icon">🔬</div>
+    <div class="upload-title">LogLens 2.0</div>
+    <div class="upload-sub">Universal client-side log explorer · zero data leaves your machine</div>
+    <div class="upload-formats">
+      <span class="upload-format">JSON / NDJSON</span><span class="upload-format">CSV</span>
+      <span class="upload-format">.log / .txt</span><span class="upload-format">Syslog</span>
+      <span class="upload-format">Apache / Nginx</span><span class="upload-format">Log4j</span>
+      <span class="upload-format">CEF / LEEF</span><span class="upload-format">logfmt</span>
+      <span class="upload-format">GELF</span><span class="upload-format">W3C/IIS</span>
+      <span class="upload-format">Windows Event XML</span><span class="upload-format">.evtx (guide)</span><span class="upload-format">Docker</span>
+    </div>
+    <div class="upload-btns">
+      <button class="btn primary" onclick="document.getElementById('fileInput').click()">⊕ Browse Files</button>
+      <button class="btn" onclick="showPasteModal()">⎘ Paste Text</button>
+      <button class="btn" onclick="loadSampleLogs()">▶ Load Samples</button>
+    </div>
+    <div class="upload-privacy">🔒 100% client-side · No uploads · No tracking · Works offline</div>
+    <input type="file" id="fileInput" multiple accept=".json,.ndjson,.log,.txt,.csv,.out,.syslog,.cef,.leef,.gz,.xml,.evtx">
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">Log<span>Lens</span><sub>2.0</sub></div>
+  <div class="vdiv"></div>
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-dot" style="background:var(--green)"></div>Total:<span class="stat-val" id="statTotal">0</span></div>
+    <div class="stat"><div class="stat-dot" style="background:var(--red)"></div>Errors:<span class="stat-val" id="statError">0</span></div>
+    <div class="stat"><div class="stat-dot" style="background:var(--yellow)"></div>Warns:<span class="stat-val" id="statWarn">0</span></div>
+    <div class="stat"><div class="stat-dot" style="background:var(--accent)"></div>Matched:<span class="stat-val" id="statMatched">0</span></div>
+    <div class="stat">Fields:<span class="stat-val" id="statFields">0</span></div>
+    <div class="stat" id="statTimeSpan" style="display:none">Span:<span class="stat-val" id="statSpan">-</span></div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn" onclick="document.getElementById('fileInput').click()" title="Load file(s)">⊕ Load</button>
+    <button class="btn" onclick="showPasteModal()" title="Paste log text">⎘ Paste</button>
+    <button class="btn" onclick="clearLogs()" title="Clear all logs">✕ Clear</button>
+    <div class="vdiv"></div>
+    <button class="btn icon" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark theme">🌙</button>
+    <button class="btn icon" id="timelineToggleBtn" onclick="toggleTimeline()" title="Toggle timeline">📊</button>
+    <button class="btn icon" onclick="shareQuery()" title="Copy share URL (query only)">🔗</button>
+    <button class="btn icon" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">⌨</button>
+    <div class="vdiv"></div>
+    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" title="Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI</button>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="timeline-wrap" id="timelineWrap">
+  <div class="timeline-label" id="timelineLabel">No timestamps</div>
+  <canvas id="timelineCanvas"></canvas>
+  <button class="btn timeline-reset" id="timelineResetBtn" onclick="resetTimeFilter()" style="display:none" title="Clear time selection">✕ Reset</button>
+</div>
+
+<!-- KQL BAR -->
+<div class="kql-bar">
+  <div class="kql-label">
+    KQL Query
+    <span style="color:var(--text-dim);font-size:9px">AND · OR · NOT · field:value · field:>=N · field:/regex/ · *wildcard*</span>
+  </div>
+  <div class="kql-row">
+    <textarea class="kql-textarea" id="kqlInput" placeholder='* | level:ERROR AND message:*timeout* | status_code:>=400 | src_ip:/^10\./ | NOT method:GET'></textarea>
+    <button class="btn primary" onclick="runQuery()" title="Run (Enter)">▶ Run</button>
+    <button class="btn" onclick="clearQuery()" title="Clear query">✕</button>
+  </div>
+  <div class="kql-chips" id="kqlChips"></div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-resize" id="sidebarResize"></div>
+    <div class="sidebar-nav">
+      <button class="snav-btn active" data-tab="time" onclick="switchSideTab('time')">Time</button>
+      <button class="snav-btn" data-tab="level" onclick="switchSideTab('level')">Level</button>
+      <button class="snav-btn" data-tab="files" onclick="switchSideTab('files')">Files</button>
+      <button class="snav-btn" data-tab="fields" onclick="switchSideTab('fields')">Fields</button>
+    </div>
+    <div class="sidebar-body" id="sidebarBody"></div>
+  </div>
+
+  <!-- LOG AREA -->
+  <div class="log-area" id="logArea">
+    <div class="log-toolbar">
+      <span class="result-info" id="resultInfo">Showing <span id="showingCount">0</span> of <span id="totalCount">0</span></span>
+      <button class="btn" id="dedupBtn" onclick="toggleDedup()" title="Deduplicate identical messages" style="font-size:10px">Dedup</button>
+      <button class="btn" id="wrapBtn" onclick="toggleWrap()" title="Toggle line wrap" style="font-size:10px">Wrap</button>
+      <button class="btn" id="markedBtn" onclick="toggleMarked()" title="Show bookmarked rows only" style="font-size:10px">★ Marked</button>
+      <button class="btn" onclick="showColumnPicker()" style="font-size:10px">⊞ Columns</button>
+      <button class="btn" onclick="exportJSON()" style="font-size:10px">⬇ JSON</button>
+      <button class="btn" onclick="exportCSV()" style="font-size:10px">⬇ CSV</button>
+      <button class="btn" id="detailToggleBtn" onclick="toggleDetail()" style="font-size:10px">◧ Detail</button>
+    </div>
+    <div class="log-scroll" id="logScroll">
+      <table class="log-table" id="logTable">
+        <thead id="logHead"></thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">📭</div>
+        <div style="font-size:13px">No matching logs. Load a file or adjust filters.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <div class="detail-panel closed" id="detailPanel">
+    <div class="detail-resize" id="detailResize"></div>
+    <div class="detail-header">
+      <span class="detail-title">Log Detail</span>
+      <div class="detail-nav">
+        <button class="btn" id="prevRowBtn" onclick="navigateDetail(-1)" title="Previous (k)" style="font-size:10px;padding:3px 8px">↑</button>
+        <button class="btn" id="nextRowBtn" onclick="navigateDetail(1)" title="Next (j)" style="font-size:10px;padding:3px 8px">↓</button>
+        <button class="btn icon" onclick="markRow()" title="Bookmark (m)" style="font-size:12px">★</button>
+        <button class="btn" onclick="closeDetail()" style="font-size:10px;padding:3px 8px">✕</button>
+      </div>
+    </div>
+    <div class="detail-tabs">
+      <button class="dtab active" data-tab="fields" onclick="switchDetailTab('fields')">Fields</button>
+      <button class="dtab" data-tab="raw" onclick="switchDetailTab('raw')">Raw</button>
+      <button class="dtab" data-tab="tree" onclick="switchDetailTab('tree')">Tree</button>
+    </div>
+    <div class="detail-scroll" id="detailScroll"></div>
+    <div class="detail-actions">
+      <button class="btn" onclick="appendKQL('include')" style="font-size:10px">+ Filter</button>
+      <button class="btn" onclick="appendKQL('exclude')" style="font-size:10px">− Exclude</button>
+      <button class="btn" onclick="copyDetailJSON()" style="font-size:10px">⎘ JSON</button>
+      <button class="btn" onclick="copyDetailCSV()" style="font-size:10px">⎘ CSV row</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI PANEL -->
+<div class="ai-panel-wrap collapsed" id="aiPanelWrap">
+  <div class="ai-panel-header">
+    <div class="ai-status-dot" id="aiStatusDot"></div>
+    <span class="ai-panel-title">🤖 Local AI Analyst</span>
+    <span class="ai-status-text" id="aiStatusText">Not connected</span>
+    <div class="ai-model-wrap" id="aiModelWrap" style="display:none">
+      <input class="ai-model-input" id="aiModelInput" value="mistral"
+        placeholder="model name…" title="Type any Ollama model name or pick from the list"
+        oninput="aiState.currentModel=this.value;filterModelList(this.value)"
+        onkeydown="modelInputKey(event)" onfocus="openModelList()" autocomplete="off" spellcheck="false">
+      <span class="ai-model-arrow">▾</span>
+      <div class="ai-model-list" id="aiModelList"></div>
+    </div>
+    <select class="ai-ctx-sel" id="aiNumCtx" title="Context window size (tokens)" onchange="aiState.numCtx=+this.value;updateContextMeter()" style="display:none">
+      <option value="4096">4K ctx</option>
+      <option value="8192" selected>8K ctx</option>
+      <option value="16384">16K ctx</option>
+      <option value="32768">32K ctx</option>
+      <option value="131072">128K ctx</option>
+    </select>
+    <select class="ai-ctx-sel" id="aiLogCount" title="Log entries sent as context" onchange="aiState.logCount=+this.value;updateContextMeter()" style="display:none">
+      <option value="10">10 logs</option>
+      <option value="30" selected>30 logs</option>
+      <option value="50">50 logs</option>
+      <option value="100">100 logs</option>
+    </select>
+    <div class="ai-quick" id="aiQuickBtns" style="display:none">
+      <button class="ai-qbtn" onclick="aiAnalyzeLogs()">🔍 Analyze</button>
+      <button class="ai-qbtn" onclick="aiGenerateReport()">📋 Report</button>
+      <button class="ai-qbtn" onclick="aiSuggestKQL()">💡 KQL Hints</button>
+      <button class="ai-qbtn" onclick="aiRootCause()">🔥 Root Cause</button>
+      <button class="ai-qbtn" onclick="aiSecurityAudit()">🛡 Security</button>
+      <button class="ai-qbtn" onclick="aiStatsSummary()">📊 Stats</button>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <input class="ai-url-input" id="aiUrlInput" value="http://localhost:11434" placeholder="Ollama URL" title="Ollama base URL">
+      <button class="btn" onclick="reconnectOllama()" style="font-size:10px;padding:3px 8px">Connect</button>
+      <button class="btn" onclick="clearAIChat()" style="font-size:10px;padding:3px 8px">Clear</button>
+      <button class="btn" onclick="toggleAIPanel()" style="font-size:10px;padding:3px 8px">✕</button>
+    </div>
+  </div>
+  <div class="ai-panel-body">
+    <div class="ai-messages" id="aiMessages">
+      <div class="ai-msg system-note" id="aiWelcomeNote">
+        Open this panel, load your logs, then ask the AI anything about them. All analysis runs locally via Ollama — zero data leaves your machine.
+      </div>
+    </div>
+    <div class="ai-input-wrap">
+      <div id="aiNotice" class="ai-notice" style="display:none">
+        <div style="color:var(--red);font-weight:700;margin-bottom:6px">⚠ Cannot reach Ollama</div>
+        <div id="aiNoticeReason" style="color:var(--yellow);font-size:10px;margin-bottom:8px;word-break:break-word"></div>
+        <div style="color:var(--text-dim);font-size:10px;margin-bottom:10px">Fix one of these:</div>
+
+        <div style="margin-bottom:8px">
+          <div style="color:var(--text-bright);font-size:10px;margin-bottom:3px">① Ollama not running — start it:</div>
+          <code style="font-size:10px">ollama serve</code>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <div style="color:var(--text-bright);font-size:10px;margin-bottom:3px">② CORS blocked — restart with origins allowed:</div>
+          <div style="margin-bottom:3px"><span style="color:var(--text-dim);font-size:10px">Windows CMD:</span><br>
+          <code style="font-size:10px">set OLLAMA_ORIGINS=*&amp;&amp; ollama serve</code></div>
+          <div style="margin-bottom:3px"><span style="color:var(--text-dim);font-size:10px">Windows PowerShell:</span><br>
+          <code style="font-size:10px">$env:OLLAMA_ORIGINS="*"; ollama serve</code></div>
+          <div><span style="color:var(--text-dim);font-size:10px">Mac / Linux:</span><br>
+          <code style="font-size:10px">OLLAMA_ORIGINS=* ollama serve</code></div>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <div style="color:var(--text-bright);font-size:10px;margin-bottom:3px">③ No models pulled yet:</div>
+          <code style="font-size:10px">ollama pull mistral</code>
+        </div>
+
+        <div style="border-top:1px solid rgba(255,215,0,.2);padding-top:6px;margin-top:4px">
+          <div style="color:var(--text-dim);font-size:10px">After fixing, click <strong style="color:var(--accent)">Connect</strong> above.</div>
+          <div style="color:var(--text-dim);font-size:10px;margin-top:4px">No Ollama? Get it free at <a href="https://ollama.com" target="_blank" rel="noopener" style="color:var(--accent)">ollama.com</a></div>
+        </div>
+      </div>
+      <textarea class="ai-input" id="aiInput" placeholder="Ask about the logs… (Enter to send, Shift+Enter for newline)" onkeydown="aiKeydown(event)" oninput="updateContextMeter()"></textarea>
+      <div class="ai-send-row">
+        <button class="btn primary" id="aiSendBtn" onclick="sendAIMessage()" style="font-size:11px">▶ Send</button>
+        <button class="btn ai-stop-btn" id="aiStopBtn" onclick="stopAI()" style="font-size:11px;display:none">⊘ Stop</button>
+        <div class="ai-ctx-meter" id="aiCtxMeter">
+          <div class="ai-ctx-track"><div class="ai-ctx-fill" id="aiCtxFill" style="width:0%;background:var(--accent)"></div></div>
+          <span class="ai-ctx-label" id="aiCtxLabel">0 / 8K tokens</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <span>🔒 All processing is local — no data ever leaves your browser</span>
+  <span style="flex:1"></span>
+  <span id="kbdHint">Press <kbd style="font-size:9px;padding:0 4px">?</kbd> for shortcuts</span>
+  <span>LogLens 2.0 · <a href="https://github.com" target="_blank" rel="noopener">GitHub</a></span>
+</div>
+
+<!-- MODALS -->
+<div class="modal-backdrop hidden" id="pasteModal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">⎘ Paste Log Text</span><button class="btn" onclick="closePasteModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Paste any log content — auto-detects format</div>
+      <textarea class="paste-textarea" id="pasteArea" placeholder="Paste your logs here..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" onclick="loadPasted()">Load Logs</button>
+      <button class="btn" onclick="closePasteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="columnModal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">⊞ Column Picker</span><button class="btn" onclick="closeColumnPicker()">✕</button></div>
+    <div class="modal-body" id="columnModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn primary" onclick="applyColumns()">Apply</button>
+      <button class="btn" onclick="resetColumns()">Reset</button>
+      <button class="btn" onclick="closeColumnPicker()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="kbdModal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">⌨ Keyboard Shortcuts</span><button class="btn" onclick="closeKbdHelp()">✕</button></div>
+    <div class="modal-body">
+      <div class="kbd-grid">
+        <kbd>j</kbd><span class="kbd-desc">Next row / scroll down</span>
+        <kbd>k</kbd><span class="kbd-desc">Previous row / scroll up</span>
+        <kbd>Enter</kbd><span class="kbd-desc">Open detail for selected row</span>
+        <kbd>Esc</kbd><span class="kbd-desc">Close detail / modal</span>
+        <kbd>/</kbd><span class="kbd-desc">Focus KQL search bar</span>
+        <kbd>Ctrl+Enter</kbd><span class="kbd-desc">Run query</span>
+        <kbd>m</kbd><span class="kbd-desc">Bookmark / mark selected row</span>
+        <kbd>c</kbd><span class="kbd-desc">Copy selected row as JSON</span>
+        <kbd>w</kbd><span class="kbd-desc">Toggle line wrap</span>
+        <kbd>d</kbd><span class="kbd-desc">Toggle dark / light theme</span>
+        <kbd>t</kbd><span class="kbd-desc">Toggle timeline</span>
+        <kbd>←</kbd><span class="kbd-desc">Previous row (in detail)</span>
+        <kbd>→</kbd><span class="kbd-desc">Next row (in detail)</span>
+        <kbd>?</kbd><span class="kbd-desc">Show this help</span>
+      </div>
+      <div style="margin-top:14px;font-size:11px;color:var(--text-dim)">
+        <strong style="color:var(--accent)">KQL Examples</strong><br>
+        <code>level:ERROR AND service:auth*</code><br>
+        <code>status_code:>=500 AND NOT method:GET</code><br>
+        <code>message:/timeout|refused/i</code><br>
+        <code>src_ip:10.0.* OR src_ip:192.168.*</code><br>
+        <code>latency_ms:>=1000 AND env:production</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- EVTX CONVERSION GUIDE -->
+<div class="modal-backdrop hidden" id="evtxModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <span class="modal-title">🪟 Windows Event Log (.evtx) — Conversion Required</span>
+      <button class="btn" onclick="document.getElementById('evtxModal').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body" style="font-size:12px;line-height:1.8">
+      <div style="background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);border-radius:6px;padding:10px 14px;margin-bottom:14px;color:var(--yellow)">
+        <strong>File detected:</strong> <span id="evtxFileName" style="color:var(--text-bright)"></span><br>
+        <span style="font-size:11px;color:var(--text-dim)">.evtx is a binary format — convert it first, then drop the output back into LogLens.</span>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px">Option A — PowerShell (recommended, one command)</div>
+        <pre style="background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:10px;font-size:11px;color:var(--green);overflow-x:auto">Get-WinEvent -Path "C:\path\to\your.evtx" |
+  Select-Object TimeCreated,Id,LevelDisplayName,Message,ProviderName,MachineName |
+  ConvertTo-Json -Depth 3 |
+  Out-File -Encoding UTF8 events.json</pre>
+        <span style="font-size:11px;color:var(--text-dim)">Then load <code style="color:var(--accent)">events.json</code> into LogLens.</span>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px">Option B — PowerShell → XML (preserves all fields)</div>
+        <pre style="background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:10px;font-size:11px;color:var(--green);overflow-x:auto">$events = Get-WinEvent -Path "C:\path\to\your.evtx"
+"&lt;Events&gt;" | Out-File events.xml -Encoding UTF8
+$events | ForEach-Object { $_.ToXml() } | Out-File events.xml -Append -Encoding UTF8
+"&lt;/Events&gt;" | Out-File events.xml -Append -Encoding UTF8</pre>
+        <span style="font-size:11px;color:var(--text-dim)">Then load <code style="color:var(--accent)">events.xml</code> — LogLens parses Windows XML Event Log natively.</span>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px">Option C — wevtutil (built into every Windows)</div>
+        <pre style="background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:10px;font-size:11px;color:var(--green);overflow-x:auto">wevtutil epl "Security" security.evtx          &amp; REM export live log
+wevtutil qe your.evtx /lf:true /f:XML &gt; events.xml   &amp; REM convert to XML</pre>
+      </div>
+
+      <div style="margin-bottom:6px">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:6px">Option D — Export from Event Viewer (GUI)</div>
+        <div style="color:var(--text-dim);font-size:11px">
+          Event Viewer → right-click any log → <em>Save All Events As…</em> → choose <strong>XML (*.xml)</strong><br>
+          Drag the saved .xml file straight into LogLens.
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" onclick="document.getElementById('evtxModal').classList.add('hidden')">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ── STATE ──────────────────────────────────────────────────────────────────
+let allLogs = [], filteredLogs = [], fields = {}, files = [];
+let markedRows = new Set(); // indices into allLogs
+let activeLevels = new Set();
+let kqlQuery = '*';
+let timeFilter = { from: null, to: null, quick: null };
+let dedupMode = false, showMarkedOnly = false, wrapMode = false;
+let sortField = null, sortDir = 1;
+let selectedIdx = null; // index in filteredLogs
+let detailOpen = false, detailTab = 'fields';
+let visibleColumns = [];
+let pendingColumns = [];
+let sideTab = 'time';
+let expandedFields = new Set();
+// Virtual scroll
+const ROW_H = 26, BUFFER = 40;
+let vsFrom = 0, vsTo = 0, vsTotal = 0;
+let scrollRAF = null;
+// Timeline
+let timeRange = { min: Infinity, max: -Infinity };
+let tDrag = { active: false, x0: 0, x1: 0 };
+let timelineVisible = true;
+// Persistence
+let queryHistory = [];
+let savedQueries = [];
+const HISTORY_KEY = 'loglens_history';
+const SAVED_KEY = 'loglens_saved';
+const THEME_KEY = 'loglens_theme';
+
+const LEVEL_COLORS = {
+  ERROR:'#ff4d6d', CRITICAL:'#ff4d6d', FATAL:'#ff4d6d',
+  WARN:'#ffd700', WARNING:'#ffd700',
+  INFO:'#00d4ff', DEBUG:'#b06dff', TRACE:'#5a7a94'
+};
+const COL_PRIORITY = ['timestamp','@timestamp','time','ts','datetime','level','severity',
+  'message','msg','service','src_ip','method','status_code','host','trace_id','user_id',
+  'latency_ms','bytes','env','thread','class'];
+
+// ── THEME ──────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = isLight ? '☀' : '🌙';
+  localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
+  drawTimeline();
+}
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀'; }
+}
+
+// ── PERSISTENCE ────────────────────────────────────────────────────────────
+function loadPersistence() {
+  try { queryHistory = JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { queryHistory = []; }
+  try { savedQueries = JSON.parse(localStorage.getItem(SAVED_KEY)) || []; } catch { savedQueries = []; }
+}
+function addHistory(q) {
+  if (!q || q === '*') return;
+  queryHistory = [q, ...queryHistory.filter(x => x !== q)].slice(0, 20);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(queryHistory));
+}
+function saveCurrentQuery() {
+  const q = document.getElementById('kqlInput').value.trim();
+  if (!q || q === '*') { toast('Nothing to save'); return; }
+  const name = prompt('Name for this query:', q.slice(0,40));
+  if (!name) return;
+  savedQueries = savedQueries.filter(s => s.name !== name);
+  savedQueries.unshift({ name, q });
+  savedQueries = savedQueries.slice(0, 30);
+  localStorage.setItem(SAVED_KEY, JSON.stringify(savedQueries));
+  renderChips();
+  toast('Query saved: ' + name);
+}
+
+// ── SAMPLE LOGS ────────────────────────────────────────────────────────────
+function loadSampleLogs() {
+  const now = Date.now();
+  const services = ['auth-service','api-gateway','db-proxy','worker','scheduler','cache'];
+  const ips = ['10.0.0.12','192.168.1.45','172.16.0.8','10.0.1.201','203.0.113.55'];
+  const methods = ['GET','POST','PUT','DELETE','PATCH'];
+  const levels = ['DEBUG','DEBUG','INFO','INFO','INFO','WARN','WARN','ERROR','ERROR','CRITICAL'];
+  const msgs = ['User login successful','Invalid credentials','Session expired','Database connection timeout',
+    'Rate limit exceeded','Request processed','Cache miss','Cache hit','Token validated','Token expired',
+    'Permission denied','Disk I/O high','CPU spike detected','Memory threshold exceeded','Retry attempt 3/5',
+    'Service health OK','Unhandled exception','TLS handshake failed','DNS resolution failed','Pool exhausted'];
+  const sample = Array.from({length:600},(_,i) => {
+    const level = levels[Math.floor(Math.random()*levels.length)];
+    const svc = services[Math.floor(Math.random()*services.length)];
+    return {
+      timestamp: new Date(now-(600-i)*2500-Math.random()*2000).toISOString(),
+      level, service: svc,
+      message: msgs[Math.floor(Math.random()*msgs.length)],
+      src_ip: ips[Math.floor(Math.random()*ips.length)],
+      method: methods[Math.floor(Math.random()*methods.length)],
+      status_code: level==='ERROR'||level==='CRITICAL'?500:level==='WARN'?429:[200,201,204,304][Math.floor(Math.random()*4)],
+      latency_ms: Math.round(Math.random()*2500),
+      user_id: `uid-${Math.floor(Math.random()*500)}`,
+      trace_id: Math.random().toString(36).substr(2,12),
+      host: `${svc}-${Math.floor(Math.random()*3)+1}.prod`,
+      env: Math.random()>.2?'production':'staging',
+      bytes: Math.round(Math.random()*65000)
+    };
+  });
+  ingestLogs(sample, 'sample-logs.json');
+  hideOverlay();
+  toast('Loaded 600 sample logs');
+}
+
+// ── FILE LOADING ───────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  [...e.target.files].forEach(readFile);
+  e.target.value = '';
+});
+const uploadBox = document.getElementById('uploadBox');
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+uploadBox.addEventListener('drop', e => {
+  e.preventDefault(); uploadBox.classList.remove('dragover');
+  [...e.dataTransfer.files].forEach(readFile);
+});
+// Also support drop anywhere on page when overlay hidden
+document.addEventListener('dragover', e => {
+  if (document.getElementById('uploadOverlay').style.display === 'none') e.preventDefault();
+});
+document.addEventListener('drop', e => {
+  const ov = document.getElementById('uploadOverlay');
+  if (ov.style.display === 'none') {
+    e.preventDefault();
+    [...e.dataTransfer.files].forEach(readFile);
+  }
+});
+
+function readFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  // .evtx is binary — detect magic bytes then show conversion guide
+  if (ext === 'evtx') {
+    const binReader = new FileReader();
+    binReader.onload = ev => {
+      const buf = new Uint8Array(ev.target.result);
+      // Magic: "ElfFile\0" = 45 6C 66 46 69 6C 65 00
+      const magic = [0x45,0x6C,0x66,0x46,0x69,0x6C,0x65,0x00];
+      if (magic.every((b,i) => buf[i] === b)) {
+        showEvtxGuide(file.name);
+      } else {
+        toast(`⚠ ${file.name} does not look like a valid .evtx file`, true);
+      }
+    };
+    binReader.readAsArrayBuffer(file.slice(0, 8));
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    let parsed = [];
+
+    if (ext === 'csv') {
+      parsed = parseCSV(text);
+    } else if (ext === 'xml' || text.trimStart().startsWith('<?xml') || text.includes('<Events>') || text.includes('<Event ')) {
+      // Try Windows XML Event Log first
+      const winEvts = parseWindowsXMLEvents(text);
+      if (winEvts.length) {
+        parsed = winEvts;
+      } else {
+        parsed = parseAuto(text);
+      }
+    } else {
+      parsed = parseAuto(text);
+    }
+
+    if (!parsed.length) {
+      parsed = text.split('\n')
+        .map((l,i) => l.trim() ? {line_no:i+1, message:l.trim(), level:detectLevel(l), _raw:l} : null)
+        .filter(Boolean);
+    }
+    if (!parsed.length) { toast(`⚠ ${file.name} is empty`, true); return; }
+    ingestLogs(parsed, file.name, file.size);
+    hideOverlay();
+    toast(`Loaded ${parsed.length.toLocaleString()} logs from ${file.name}`);
+  };
+  reader.readAsText(file);
+}
+
+// ── WINDOWS XML EVENT LOG PARSER ───────────────────────────────────────────
+function parseWindowsXMLEvents(xmlText) {
+  let doc;
+  try {
+    doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  } catch { return []; }
+  if (doc.querySelector('parsererror')) return [];
+
+  const events = doc.querySelectorAll('Event');
+  if (!events.length) return [];
+
+  return [...events].map(evt => {
+    const sys = evt.querySelector('System');
+    if (!sys) return null;
+
+    const get = (sel, attr) => {
+      const el = sys.querySelector(sel);
+      return attr ? el?.getAttribute(attr) : el?.textContent?.trim();
+    };
+
+    const rawLevel = get('Level');
+    const keywords = get('Keywords');
+    const level = winEvtLevel(rawLevel, keywords);
+
+    const obj = {
+      timestamp:     get('TimeCreated', 'SystemTime'),
+      level,
+      EventID:       get('EventID'),
+      source:        get('Provider', 'Name'),
+      computer:      get('Computer'),
+      channel:       get('Channel'),
+      EventRecordID: get('EventRecordID'),
+      task:          get('Task'),
+      opcode:        get('Opcode'),
+      processId:     get('Execution', 'ProcessID'),
+      threadId:      get('Execution', 'ThreadID'),
+      userSid:       sys.querySelector('Security')?.getAttribute('UserID') || undefined,
+    };
+
+    // Parse EventData named fields
+    evt.querySelectorAll('EventData > Data[Name]').forEach(d => {
+      const name = d.getAttribute('Name');
+      const val  = d.textContent.trim();
+      if (name && val) obj[name] = val;
+    });
+
+    // Unnamed EventData items
+    const unnamed = [...evt.querySelectorAll('EventData > Data:not([Name])')];
+    if (unnamed.length) obj.eventData = unnamed.map(d => d.textContent.trim()).join(' | ');
+
+    // UserData fallback
+    const ud = evt.querySelector('UserData');
+    if (ud && !Object.keys(obj).find(k => !['timestamp','level','EventID','source','computer','channel','EventRecordID','task','opcode','processId','threadId','userSid'].includes(k))) {
+      obj.userData = ud.textContent.replace(/\s+/g,' ').trim().slice(0, 300);
+    }
+
+    // Build human message
+    obj.message = [obj.source, 'Event', obj.EventID, obj.SubjectUserName || obj.TargetUserName || ''].filter(Boolean).join(' ').trim();
+
+    // Remove undefined keys
+    Object.keys(obj).forEach(k => { if (obj[k] === undefined || obj[k] === '') delete obj[k]; });
+    return obj;
+  }).filter(Boolean);
+}
+
+function winEvtLevel(levelNum, keywords) {
+  // Keywords bitmask: 0x8020000000000000 = Audit Failure, 0x8010000000000000 = Audit Success
+  if (keywords) {
+    const kw = BigInt(keywords);
+    if ((kw & 0x8020000000000000n) === 0x8020000000000000n) return 'ERROR';   // Audit Failure
+    if ((kw & 0x8010000000000000n) === 0x8010000000000000n) return 'INFO';    // Audit Success
+  }
+  const map = {'0':'INFO','1':'CRITICAL','2':'ERROR','3':'WARN','4':'INFO','5':'DEBUG','0x00000001':'CRITICAL','0x00000002':'ERROR','0x00000003':'WARN','0x00000004':'INFO','0x00000005':'DEBUG'};
+  return map[String(levelNum)] || 'INFO';
+}
+
+// ── EVTX CONVERSION GUIDE MODAL ────────────────────────────────────────────
+function showEvtxGuide(filename) {
+  const safe = filename.replace(/'/g,"\\'");
+  document.getElementById('evtxFileName').textContent = filename;
+  document.getElementById('evtxModal').classList.remove('hidden');
+}
+
+function showPasteModal() { document.getElementById('pasteModal').classList.remove('hidden'); document.getElementById('pasteArea').focus(); }
+function closePasteModal() { document.getElementById('pasteModal').classList.add('hidden'); }
+function loadPasted() {
+  const text = document.getElementById('pasteArea').value.trim();
+  if (!text) { toast('Nothing to paste', true); return; }
+  let parsed = parseAuto(text);
+  if (!parsed.length) parsed = text.split('\n').map((l,i) => l.trim() ? {line_no:i+1,message:l.trim(),level:detectLevel(l),_raw:l} : null).filter(Boolean);
+  if (!parsed.length) { toast('Could not parse pasted text', true); return; }
+  ingestLogs(parsed, 'pasted-text', text.length);
+  closePasteModal();
+  hideOverlay();
+  document.getElementById('pasteArea').value = '';
+  toast(`Loaded ${parsed.length.toLocaleString()} logs from paste`);
+}
+
+function hideOverlay() { document.getElementById('uploadOverlay').style.display = 'none'; }
+
+// ── AUTO-PARSER ─────────────────────────────────────────────────────────────
+function parseAuto(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (!lines.length) return [];
+  // 1. JSON array
+  if (text.trimStart().startsWith('[')) {
+    try { const a = JSON.parse(text); if (Array.isArray(a) && a.length) return normalizeAll(a); } catch {}
+  }
+  // 2. NDJSON
+  const ndjson = tryNDJSON(lines);
+  if (ndjson) return normalizeAll(ndjson);
+  // 3. W3C/IIS extended log
+  if (lines[0].startsWith('#Fields:')) return parseW3C(lines);
+  // 4. logfmt
+  const logfmt = tryLogfmt(lines);
+  if (logfmt) return logfmt;
+  // 5. Text patterns
+  return parseTextLogs(lines);
+}
+
+function normalizeAll(logs) { return logs.map(normalizeLog); }
+
+function normalizeLog(obj) {
+  // GELF normalization
+  if (obj.version && obj.short_message !== undefined) {
+    return {
+      ...obj,
+      message: obj.short_message + (obj.full_message && obj.full_message !== obj.short_message ? '\n' + obj.full_message : ''),
+      level: gelfLevelToStr(obj.level),
+      timestamp: obj.timestamp ? new Date(obj.timestamp * 1000).toISOString() : undefined,
+    };
+  }
+  // ECS/Elasticsearch alias
+  if (obj['log.level'] && !obj.level) obj.level = obj['log.level'];
+  if (obj['log.logger'] && !obj.service) obj.service = obj['log.logger'];
+  return obj;
+}
+
+function gelfLevelToStr(n) {
+  const m = {0:'CRITICAL',1:'CRITICAL',2:'CRITICAL',3:'ERROR',4:'WARN',5:'WARN',6:'INFO',7:'DEBUG'};
+  return m[n] || 'INFO';
+}
+
+function tryNDJSON(lines) {
+  const results = []; let fails = 0;
+  for (const line of lines) {
+    if (!line.startsWith('{') && !line.startsWith('[')) { fails++; continue; }
+    try { results.push(JSON.parse(line)); } catch { fails++; }
+  }
+  return results.length > 0 && fails / lines.length < 0.3 ? results : null;
+}
+
+function tryLogfmt(lines) {
+  const re = /(\w[\w.-]*)\s*=\s*("(?:[^"\\]|\\.)*"|\S+)/g;
+  const results = []; let ok = 0;
+  for (const line of lines) {
+    const obj = {}; let m, n = 0;
+    re.lastIndex = 0;
+    while ((m = re.exec(line)) !== null) { obj[m[1]] = m[2].replace(/^"|"$/g,''); n++; }
+    if (n >= 2) { ok++; obj._raw = line; results.push(obj); }
+    else results.push(null);
+  }
+  if (ok / lines.length > 0.5)
+    return results.map((r,i) => r || { line_no:i+1, message:lines[i], level:detectLevel(lines[i]) });
+  return null;
+}
+
+function parseW3C(lines) {
+  let headers = [];
+  const rows = [];
+  for (const line of lines) {
+    if (line.startsWith('#Fields:')) { headers = line.slice(8).trim().split(/\s+/); continue; }
+    if (line.startsWith('#')) continue;
+    const vals = line.split(/\s+/);
+    if (!headers.length) continue;
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = vals[i] || ''; });
+    if (obj.date && obj.time) obj.timestamp = obj.date + 'T' + obj.time;
+    obj.level = detectLevel(line);
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function parseTextLogs(lines) {
+  const patterns = [
+    { re:/^\[(\d{4}\d{2}\d{2}-\d{2}:\d{2}:\d{2})\]\s+\[(\w+)\s*\]\s+(.*)$/, fn:m=>({timestamp:formatXrdpTs(m[1]),level:m[2].trim().toUpperCase(),message:m[3]}) },
+    { re:/^\[(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[^\]]*)\]\s+\[(\w+)\s*\]\s+(.*)$/, fn:m=>({timestamp:m[1],level:m[2].trim().toUpperCase(),message:m[3]}) },
+    { re:/^\[(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[^\]]*)\]\s+(\w+)\s+(.*)$/, fn:m=>({timestamp:m[1],level:m[2].toUpperCase(),message:m[3]}) },
+    { re:/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+\[(\w+)\s*\]\s+(.*)$/, fn:m=>({timestamp:m[1],level:m[2].trim().toUpperCase(),message:m[3]}) },
+    { re:/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s+(\w+)\s+(?:\[([^\]]+)\]\s+)?(.*)$/, fn:m=>({timestamp:m[1],level:m[2].toUpperCase(),logger:m[3]||undefined,message:m[4]}) },
+    { re:/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[.,]\d+)\s+\[([^\]]+)\]\s+(\w+)\s+(\S+)\s+-\s+(.*)$/, fn:m=>({timestamp:m[1],thread:m[2],level:m[3].toUpperCase(),class:m[4],message:m[5]}) },
+    { re:/^(\w{3}\s{1,2}\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+(\S+?)(?:\[(\d+)\])?:\s+(.*)$/, fn:m=>({timestamp:m[1],host:m[2],service:m[3],pid:m[4]||undefined,message:m[5],level:detectLevel(m[5])}) },
+    { re:/^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\w+)\s+(\S+)\s+(\S+)"\s+(\d+)\s+(\d+)(.*)$/, fn:m=>({src_ip:m[1],timestamp:m[2],method:m[3],url:m[4],protocol:m[5],status_code:+m[6],bytes:+m[7],level:+m[6]>=500?'ERROR':+m[6]>=400?'WARN':'INFO',message:`${m[3]} ${m[4]} ${m[6]}`}) },
+    { re:/^\[(\w+\s+\w+\s+\d+\s+[\d:.]+\s+\d{4})\]\s+\[(\w+)\]\s+(?:\[pid\s+\d+\]\s+)?(.*)$/, fn:m=>({timestamp:m[1],level:m[2].toUpperCase(),message:m[3]}) },
+    { re:/^(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s+(\d{2}:\d{2}(?::\d{2})?)\s+(\w+)\s+(.*)$/, fn:m=>({timestamp:m[1]+' '+m[2],level:m[3].toUpperCase(),message:m[4]}) },
+    { re:/^(?:[\d-T:.Z]+\s+)?CEF:(\d)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|(\d+)\|(.*)$/, fn:m=>{const o={cef_version:m[1],vendor:m[2],product:m[3],version:m[4],event_id:m[5],message:m[6],severity:+m[7],level:+m[7]>=7?'ERROR':+m[7]>=4?'WARN':'INFO'};m[8].split(/\s+/).forEach(kv=>{const[k,...v]=kv.split('=');if(k&&v.length)o[k]=v.join('=');});return o;} },
+    // Docker/k8s: timestamp level logger message
+    { re:/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(INFO|DEBUG|WARN|ERROR|FATAL|CRITICAL)\s+(.+)$/, fn:m=>({timestamp:m[1],level:m[2].toUpperCase(),message:m[3]}) },
+  ];
+  return lines.map((line,i) => {
+    for (const {re,fn} of patterns) {
+      try { const m = re.exec(line); if (m) { const o=fn(m); o._raw=line; return o; } } catch {}
+    }
+    return { line_no:i+1, message:line, level:detectLevel(line), _raw:line };
+  });
+}
+
+function parseCSV(text) {
+  const lines = text.split('\n');
+  if (!lines.length) return [];
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).filter(l=>l.trim()).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = vals[i] ?? ''; });
+    return obj;
+  });
+}
+
+function splitCSVLine(line) {
+  const out = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { out.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function formatXrdpTs(s) {
+  const m = /^(\d{4})(\d{2})(\d{2})-(\d{2}:\d{2}:\d{2})$/.exec(s);
+  return m ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}` : s;
+}
+
+function detectLevel(line) {
+  const u = line.toUpperCase();
+  if (u.includes('CRITICAL')||u.includes('FATAL')) return 'CRITICAL';
+  if (u.includes('ERROR')||u.includes(' ERR ')) return 'ERROR';
+  if (u.includes('WARN')) return 'WARN';
+  if (u.includes('DEBUG')) return 'DEBUG';
+  if (u.includes('TRACE')) return 'TRACE';
+  return 'INFO';
+}
+
+// ── INGEST ─────────────────────────────────────────────────────────────────
+function ingestLogs(newLogs, filename, size) {
+  const fileId = files.length;
+  const fmtSize = size ? (size > 1048576 ? (size/1048576).toFixed(1)+'MB' : (size/1024).toFixed(0)+'KB') : '';
+  files.push({ id:fileId, name:filename||'unknown', size:fmtSize, count:newLogs.length });
+  newLogs.forEach(l => { l._fileId = fileId; });
+  allLogs = allLogs.concat(newLogs);
+  markedRows = new Set([...markedRows]);
+  rebuildFields();
+  autoPickColumns();
+  rebuildTimeRange();
+  runQuery();
+}
+
+function removeFile(fileId) {
+  allLogs = allLogs.filter(l => l._fileId !== fileId);
+  files = files.filter(f => f.id !== fileId);
+  // Remap marks
+  markedRows.clear();
+  rebuildFields();
+  autoPickColumns();
+  rebuildTimeRange();
+  runQuery();
+  renderSidebar();
+  if (!allLogs.length) { document.getElementById('uploadOverlay').style.display = 'flex'; }
+  toast('File removed');
+}
+
+function clearLogs() {
+  allLogs=[]; filteredLogs=[]; fields={}; files=[]; markedRows.clear();
+  activeLevels.clear(); selectedIdx=null; sortField=null; sortDir=1;
+  timeFilter={from:null,to:null,quick:null}; timeRange={min:Infinity,max:-Infinity};
+  visibleColumns=[]; document.getElementById('logHead').innerHTML='';
+  document.getElementById('logBody').innerHTML='';
+  document.getElementById('emptyState').classList.remove('hidden');
+  renderSidebar(); updateStats(); drawTimeline();
+  document.getElementById('uploadOverlay').style.display = 'flex';
+}
+
+function rebuildFields() {
+  fields = {};
+  allLogs.forEach(log => {
+    Object.keys(log).forEach(k => {
+      if (k === '_fileId') return;
+      if (!fields[k]) fields[k] = { count:0, type:'string', values:[], valueCounts:{} };
+      fields[k].count++;
+      const v = log[k];
+      if (typeof v === 'number') fields[k].type = 'number';
+      else if (typeof v === 'boolean') fields[k].type = 'bool';
+      const sv = String(v);
+      if (!fields[k].valueCounts[sv]) fields[k].valueCounts[sv] = 0;
+      fields[k].valueCounts[sv]++;
+    });
+  });
+  // Build top values
+  for (const f of Object.values(fields)) {
+    f.values = Object.entries(f.valueCounts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([v,c])=>({v,c}));
+  }
+  document.getElementById('statFields').textContent = Object.keys(fields).length;
+}
+
+function autoPickColumns() {
+  if (visibleColumns.length) return; // user already picked
+  const all = Object.keys(fields);
+  const cols = [];
+  COL_PRIORITY.forEach(c => { if (all.includes(c)) cols.push(c); });
+  all.forEach(f => { if (!cols.includes(f) && !f.startsWith('_') && cols.length < 12) cols.push(f); });
+  visibleColumns = cols.slice(0, 9);
+}
+
+function rebuildTimeRange() {
+  timeRange = { min:Infinity, max:-Infinity };
+  allLogs.forEach(l => {
+    const t = parseTimestamp(l);
+    if (t && isFinite(t)) {
+      if (t < timeRange.min) timeRange.min = t;
+      if (t > timeRange.max) timeRange.max = t;
+    }
+  });
+  if (isFinite(timeRange.min)) {
+    document.getElementById('statTimeSpan').style.display = '';
+    const span = timeRange.max - timeRange.min;
+    document.getElementById('statSpan').textContent = fmtDuration(span);
+  }
+  drawTimeline();
+}
+
+function parseTimestamp(log) {
+  const raw = log.timestamp || log['@timestamp'] || log.time || log.ts || log.datetime || log.date;
+  if (!raw) return null;
+  if (typeof raw === 'number') return raw > 1e12 ? raw : raw * 1000;
+  const d = new Date(raw);
+  return isNaN(d) ? null : d.getTime();
+}
+
+function fmtDuration(ms) {
+  if (ms < 60000) return Math.round(ms/1000) + 's';
+  if (ms < 3600000) return Math.round(ms/60000) + 'm';
+  if (ms < 86400000) return (ms/3600000).toFixed(1) + 'h';
+  return (ms/86400000).toFixed(1) + 'd';
+}
+
+// ── ENHANCED KQL ENGINE ────────────────────────────────────────────────────
+function parseKQL(query) {
+  query = query.trim();
+  if (!query || query === '*') return () => true;
+  return log => evalKQL(query, log);
+}
+
+function evalKQL(expr, log) {
+  expr = expr.trim();
+  if (expr.startsWith('(') && matchingParen(expr) === expr.length - 1)
+    return evalKQL(expr.slice(1,-1), log);
+  if (/^NOT\s+/i.test(expr)) return !evalKQL(expr.replace(/^NOT\s+/i,''), log);
+  const andParts = splitTopLevel(expr, /\bAND\b/i);
+  if (andParts.length > 1) return andParts.every(p => evalKQL(p, log));
+  const orParts = splitTopLevel(expr, /\bOR\b/i);
+  if (orParts.length > 1) return orParts.some(p => evalKQL(p, log));
+
+  // Range: field:>=N
+  const rangeM = /^([\w.@]+)\s*:?(>=|<=|>|<)\s*(.+)$/.exec(expr);
+  if (rangeM) {
+    const [,field,,op,val] = rangeM;
+    const fv = getField(log, field);
+    const n = parseFloat(fv), nv = parseFloat(val);
+    if (isNaN(n)||isNaN(nv)) return false;
+    return op='>='?n>=nv:op==='<='?n<=nv:op==='>'?n>nv:n<nv;
+  }
+
+  // field:/regex/flags
+  const reM = /^([\w.@]+)\s*:\s*\/(.+)\/([gimsuy]*)$/.exec(expr);
+  if (reM) {
+    const [,field,pattern,flags] = reM;
+    try {
+      const re = new RegExp(pattern, flags);
+      const fv = String(getField(log, field) ?? '');
+      return re.test(fv);
+    } catch { return false; }
+  }
+
+  // field:value (with wildcard)
+  const eqM = /^([\w.@]+)\s*:\s*(.+)$/.exec(expr);
+  if (eqM) {
+    let [,field,val] = eqM;
+    val = val.trim().replace(/^"|"$/g,'');
+    const fv = String(getField(log, field) ?? '');
+    return globMatch(fv.toLowerCase(), val.toLowerCase());
+  }
+
+  // Free text / wildcard across all fields
+  const term = expr.replace(/^['"]|['"]$/g,'').toLowerCase();
+  return Object.entries(log).some(([k,v]) => k !== '_fileId' && String(v).toLowerCase().includes(term));
+}
+
+function getField(log, field) {
+  if (field in log) return log[field];
+  return field.split('.').reduce((o,k) => o?.[k], log);
+}
+
+function globMatch(str, pattern) {
+  if (pattern === '*') return true;
+  const re = new RegExp('^' + pattern.split('*').map(s => s.replace(/[.+^${}()|[\]\\]/g,'\\$&')).join('.*') + '$');
+  return re.test(str);
+}
+
+function splitTopLevel(expr, re) {
+  const parts=[]; let depth=0, last=0;
+  const matches=[...expr.matchAll(new RegExp(re.source,'gi'))];
+  for (const m of matches) {
+    const before = expr.slice(0,m.index);
+    depth = (before.match(/\(/g)||[]).length - (before.match(/\)/g)||[]).length;
+    if (depth===0) { parts.push(expr.slice(last,m.index)); last=m.index+m[0].length; }
+  }
+  parts.push(expr.slice(last));
+  return parts.length > 1 ? parts : [expr];
+}
+
+function matchingParen(s) {
+  let d=0;
+  for (let i=0;i<s.length;i++) {
+    if (s[i]==='(') d++; else if (s[i]===')') { d--; if (d===0) return i; }
+  }
+  return -1;
+}
+
+// ── QUERY RUNNER ───────────────────────────────────────────────────────────
+function runQuery() {
+  const q = document.getElementById('kqlInput').value || '*';
+  kqlQuery = q;
+  addHistory(q);
+  let fn;
+  try { fn = parseKQL(q); } catch(e) { toast('KQL error: '+e.message, true); fn=()=>true; }
+
+  filteredLogs = allLogs.filter(fn);
+
+  // Level filter
+  if (activeLevels.size > 0)
+    filteredLogs = filteredLogs.filter(l => activeLevels.has(normalizeLevel(l.level||l.Level||l.severity||'')));
+
+  // Time filter
+  if (timeFilter.from || timeFilter.to) {
+    filteredLogs = filteredLogs.filter(l => {
+      const t = parseTimestamp(l);
+      if (!t) return true;
+      if (timeFilter.from && t < timeFilter.from) return false;
+      if (timeFilter.to && t > timeFilter.to) return false;
+      return true;
+    });
+  }
+
+  // Dedup
+  if (dedupMode) {
+    const seen = new Set();
+    filteredLogs = filteredLogs.filter(l => {
+      const key = l.message || l.msg || JSON.stringify(l);
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  }
+
+  // Marked only
+  if (showMarkedOnly) {
+    const markedSet = new Set([...markedRows]);
+    filteredLogs = filteredLogs.filter(l => {
+      const idx = allLogs.indexOf(l);
+      return markedSet.has(idx);
+    });
+  }
+
+  // Sort
+  if (sortField) {
+    filteredLogs.sort((a,b) => {
+      const av=a[sortField]??'', bv=b[sortField]??'';
+      return av<bv?-sortDir:av>bv?sortDir:0;
+    });
+  }
+
+  vsFrom=0; vsTo=0;
+  renderTable();
+  updateStats();
+  renderSidebar();
+  drawTimeline();
+  renderChips();
+}
+
+function clearQuery() { document.getElementById('kqlInput').value=''; runQuery(); }
+
+// ── VIRTUAL SCROLL ─────────────────────────────────────────────────────────
+function vsUpdate() {
+  const scroll = document.getElementById('logScroll');
+  const st = scroll.scrollTop;
+  const vh = scroll.clientHeight;
+  const from = Math.max(0, Math.floor(st/ROW_H) - BUFFER);
+  const to = Math.min(filteredLogs.length, Math.ceil((st+vh)/ROW_H) + BUFFER);
+  if (from === vsFrom && to === vsTo) return;
+  vsFrom = from; vsTo = to;
+  renderVisibleRows();
+}
+
+function renderVisibleRows() {
+  const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
+  const tbody = document.getElementById('logBody');
+  const topH = vsFrom * ROW_H;
+  const botH = Math.max(0, (filteredLogs.length - vsTo) * ROW_H);
+  const cn = cols.length + 1; // +1 for mark col
+  let html = '';
+  if (topH > 0) html += `<tr class="vs-spacer" style="height:${topH}px"><td colspan="${cn}"></td></tr>`;
+  html += buildRows(cols, vsFrom, vsTo);
+  if (botH > 0) html += `<tr class="vs-spacer" style="height:${botH}px"><td colspan="${cn}"></td></tr>`;
+  tbody.innerHTML = html;
+  addRowListeners();
+}
+
+// ── RENDER TABLE ───────────────────────────────────────────────────────────
+function getDefaultCols() {
+  if (visibleColumns.length) return visibleColumns;
+  const all = Object.keys(fields).filter(k => !k.startsWith('_'));
+  const cols = [];
+  COL_PRIORITY.forEach(c => { if (all.includes(c)) cols.push(c); });
+  all.forEach(f => { if (!cols.includes(f) && cols.length < 9) cols.push(f); });
+  return cols;
+}
+
+function renderTable() {
+  const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
+  const head = document.getElementById('logHead');
+  const empty = document.getElementById('emptyState');
+
+  head.innerHTML = '<tr><th style="width:24px;padding:4px 6px">#</th>' +
+    cols.map(c => `<th onclick="sortBy('${c}')" class="${sortField===c?'sorted':''}" title="${c}">
+      ${c.length>20?c.slice(0,18)+'…':c} <span style="opacity:.4;margin-left:2px">${sortField===c?(sortDir>0?'↑':'↓'):'↕'}</span>
+    </th>`).join('') + '</tr>';
+
+  if (!filteredLogs.length) {
+    document.getElementById('logBody').innerHTML = '';
+    empty.classList.remove('hidden');
+    document.getElementById('showingCount').textContent = '0';
+    return;
+  }
+  empty.classList.add('hidden');
+  vsFrom = 0; vsTo = 0;
+  vsUpdate();
+  const scroll = document.getElementById('logScroll');
+  scroll.onscroll = () => {
+    if (scrollRAF) return;
+    scrollRAF = requestAnimationFrame(() => { scrollRAF=null; vsUpdate(); });
+  };
+}
+
+function buildRows(cols, from, to) {
+  const hl = kqlQuery && kqlQuery !== '*' ? extractHighlightTerms(kqlQuery) : [];
+  return filteredLogs.slice(from, to).map((log, i) => {
+    const idx = from + i;
+    const logIdx = allLogs.indexOf(log);
+    const isSelected = idx === selectedIdx;
+    const isMarked = markedRows.has(logIdx);
+    return `<tr data-idx="${idx}" class="${isSelected?'selected':''} ${isMarked?'marked':''}">
+      <td style="width:24px;padding:3px 6px;color:var(--text-dim);font-size:10px;text-align:right">${isMarked?'<span class="mark-star">★</span>':''}</td>
+      ${cols.map(c => renderCell(log, c, hl)).join('')}
+    </tr>`;
+  }).join('');
+}
+
+function renderCell(log, col, hl) {
+  const v = log[col];
+  if (v === undefined || v === null) return '<td style="color:var(--text-dim);font-size:10px">—</td>';
+  if (col==='level'||col==='Level'||col==='severity') {
+    const lv = normalizeLevel(String(v));
+    return `<td><span class="badge badge-${lv}">${lv||v}</span></td>`;
+  }
+  let sv = String(v);
+  let cls = '';
+  if (col==='timestamp'||col==='@timestamp'||col==='time'||col==='ts'||col==='datetime') cls='ts-val';
+  else if (/^\d+\.\d+\.\d+\.\d+$/.test(sv)) cls='ip-val';
+  else if (col==='status_code'||col==='latency_ms'||col==='bytes') cls='num-val';
+  // Highlight
+  for (const term of hl) {
+    if (!term) continue;
+    try { sv = sv.replace(new RegExp('('+escRe(term)+')','gi'), '<span class="highlight">$1</span>'); } catch {}
+  }
+  const title = String(v).replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  return `<td class="${cls}" title="${title}">${sv}</td>`;
+}
+
+function extractHighlightTerms(q) {
+  const terms = [];
+  // Extract quoted strings and plain words
+  const matches = q.matchAll(/(?::\s*"([^"]+)"|:\s*(\*?[^*\s]+\*?)|^(\w+)$)/g);
+  for (const m of matches) terms.push(m[1]||m[2]||m[3]||'');
+  // Also plain free-text terms
+  if (!terms.length) terms.push(q.replace(/['"*()\[\]]/g,'').trim().split(/\s+/)[0]);
+  return terms.filter(t => t && t !== '*' && t.length > 1);
+}
+
+function addRowListeners() {
+  document.querySelectorAll('#logBody tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', e => {
+      const idx = parseInt(tr.dataset.idx);
+      selectedIdx = idx;
+      document.querySelectorAll('#logBody tr').forEach(r => r.classList.remove('selected'));
+      tr.classList.add('selected');
+      openDetail(filteredLogs[idx]);
+    });
+    tr.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const idx = parseInt(tr.dataset.idx);
+      const log = filteredLogs[idx];
+      const logIdx = allLogs.indexOf(log);
+      if (markedRows.has(logIdx)) markedRows.delete(logIdx); else markedRows.add(logIdx);
+      tr.classList.toggle('marked');
+      toast(markedRows.has(logIdx) ? '★ Bookmarked' : 'Bookmark removed');
+    });
+  });
+}
+
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+function sortBy(field) {
+  if (sortField===field) sortDir*=-1; else { sortField=field; sortDir=1; }
+  runQuery();
+}
+
+// ── DETAIL PANEL ───────────────────────────────────────────────────────────
+function openDetail(log) {
+  detailOpen = true;
+  document.getElementById('detailPanel').classList.remove('closed');
+  document.getElementById('detailToggleBtn').classList.add('active');
+  renderDetail(log);
+}
+
+function renderDetail(log) {
+  if (!log) return;
+  const scroll = document.getElementById('detailScroll');
+  if (detailTab === 'fields') {
+    scroll.innerHTML = Object.entries(log).filter(([k])=>k!=='_fileId').map(([k,v]) => {
+      const vs = renderDetailValue(v);
+      const safe_k = k.replace(/'/g,"\\'");
+      const safe_v = String(v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div class="detail-field">
+        <div class="detail-key" title="Filter by ${k}" onclick="appendKQLFromDetail('${safe_k}','${safe_v}')">${k}</div>
+        <div class="detail-val"><span class="detail-val-text">${vs}</span>
+          <span class="copy-btn" onclick="copyVal('${safe_v}')" title="Copy">⎘</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else if (detailTab === 'raw') {
+    const raw = log._raw || JSON.stringify(log, (k,v)=>k==='_fileId'?undefined:v, 2);
+    scroll.innerHTML = `<pre class="raw-view">${escHTML(raw)}</pre>`;
+  } else { // tree
+    scroll.innerHTML = buildJSONTree(log);
+  }
+}
+
+function renderDetailValue(v) {
+  if (v === null) return '<span style="color:var(--text-dim);font-style:italic">null</span>';
+  if (typeof v === 'number') return `<span style="color:var(--orange)">${v}</span>`;
+  if (typeof v === 'boolean') return `<span style="color:var(--purple)">${v}</span>`;
+  if (typeof v === 'object') return `<span style="color:var(--text-dim)">${escHTML(JSON.stringify(v))}</span>`;
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return `<span style="color:var(--text-dim)">${escHTML(s)}</span>`;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(s)) return `<span style="color:var(--green)">${escHTML(s)}</span>`;
+  return escHTML(s);
+}
+
+function escHTML(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function buildJSONTree(obj, depth) {
+  depth = depth || 0;
+  if (typeof obj !== 'object' || obj === null) return renderJSONLeaf(obj);
+  const entries = Object.entries(obj).filter(([k])=>k!=='_fileId'&&k!=='_raw');
+  const id = 'jt' + Math.random().toString(36).slice(2);
+  const preview = entries.length > 3 ? `{${entries.slice(0,2).map(([k])=>k).join(', ')}, …}` : '';
+  if (depth > 0) {
+    return `<span class="jtree-expand" onclick="this.nextElementSibling.classList.toggle('collapsed');this.textContent=this.textContent==='▾'?'▸':'▾'">▾</span>
+      <div class="jtree-children">${entries.map(([k,v])=>
+        `<div class="jtree-node"><span class="jtree-key" onclick="appendKQLFromDetail('${escHTML(k)}','${escHTML(String(v))}')">${escHTML(k)}</span>: ${buildJSONTree(v,depth+1)}</div>`
+      ).join('')}</div>`;
+  }
+  return `<div>${entries.map(([k,v])=>
+    `<div class="jtree-node" style="margin:3px 0"><span class="jtree-key" onclick="appendKQLFromDetail('${escHTML(k)}','${escHTML(String(v))}')">${escHTML(k)}</span>: ${buildJSONTree(v,depth+1)}</div>`
+  ).join('')}</div>`;
+}
+
+function renderJSONLeaf(v) {
+  if (v === null) return '<span class="jtree-null">null</span>';
+  if (typeof v === 'number') return `<span class="jtree-num">${v}</span>`;
+  if (typeof v === 'boolean') return `<span class="jtree-bool">${v}</span>`;
+  return `<span class="jtree-str">"${escHTML(String(v))}"</span>`;
+}
+
+function switchDetailTab(tab) {
+  detailTab = tab;
+  document.querySelectorAll('.dtab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  if (selectedIdx !== null) renderDetail(filteredLogs[selectedIdx]);
+}
+
+function closeDetail() {
+  detailOpen = false;
+  document.getElementById('detailPanel').classList.add('closed');
+  document.getElementById('detailToggleBtn').classList.remove('active');
+}
+
+function toggleDetail() {
+  if (detailOpen) closeDetail();
+  else if (selectedIdx !== null) openDetail(filteredLogs[selectedIdx]);
+  else toast('Select a row first');
+}
+
+function navigateDetail(dir) {
+  if (selectedIdx === null && filteredLogs.length) { selectedIdx = 0; }
+  else if (selectedIdx === null) return;
+  selectedIdx = Math.max(0, Math.min(filteredLogs.length-1, selectedIdx + dir));
+  openDetail(filteredLogs[selectedIdx]);
+  // Scroll row into view
+  const rows = document.querySelectorAll('#logBody tr[data-idx]');
+  rows.forEach(r => {
+    r.classList.toggle('selected', parseInt(r.dataset.idx) === selectedIdx);
+    if (parseInt(r.dataset.idx) === selectedIdx) r.scrollIntoView({block:'nearest'});
+  });
+}
+
+function appendKQLFromDetail(field, value) {
+  const inp = document.getElementById('kqlInput');
+  const curr = inp.value.trim();
+  const addition = `${field}:"${value}"`;
+  inp.value = curr && curr !== '*' ? curr + ' AND ' + addition : addition;
+  runQuery();
+}
+
+function appendKQL(mode) {
+  if (selectedIdx === null) return;
+  const log = filteredLogs[selectedIdx];
+  // Use first non-meta field as filter
+  const key = Object.keys(log).find(k => k !== '_fileId' && k !== '_raw');
+  if (key) appendKQLFromDetail(key, String(log[key]));
+}
+
+function copyVal(v) { navigator.clipboard.writeText(v).then(()=>toast('Copied!')); }
+
+function copyDetailJSON() {
+  if (selectedIdx === null) return;
+  const log = {...filteredLogs[selectedIdx]};
+  delete log._fileId; delete log._raw;
+  navigator.clipboard.writeText(JSON.stringify(log, null, 2)).then(()=>toast('Copied JSON'));
+}
+
+function copyDetailCSV() {
+  if (selectedIdx === null) return;
+  const log = filteredLogs[selectedIdx];
+  const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
+  const line = cols.map(c => { const v = String(log[c]??''); return v.includes(',') ? `"${v.replace(/"/g,'""')}"` : v; }).join(',');
+  navigator.clipboard.writeText(cols.join(',') + '\n' + line).then(()=>toast('Copied CSV row'));
+}
+
+function markRow() {
+  if (selectedIdx === null) return;
+  const log = filteredLogs[selectedIdx];
+  const logIdx = allLogs.indexOf(log);
+  if (markedRows.has(logIdx)) { markedRows.delete(logIdx); toast('Bookmark removed'); }
+  else { markedRows.add(logIdx); toast('★ Bookmarked'); }
+  renderVisibleRows();
+}
+
+// ── SIDEBAR ────────────────────────────────────────────────────────────────
+function switchSideTab(tab) {
+  sideTab = tab;
+  document.querySelectorAll('.snav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const body = document.getElementById('sidebarBody');
+  if (sideTab === 'time') body.innerHTML = renderTimePanel();
+  else if (sideTab === 'level') body.innerHTML = renderLevelPanel();
+  else if (sideTab === 'files') body.innerHTML = renderFilesPanel();
+  else body.innerHTML = renderFieldsPanel();
+}
+
+function renderTimePanel() {
+  const ranges = [
+    {label:'5m',ms:300000},{label:'30m',ms:1800000},{label:'1h',ms:3600000},
+    {label:'6h',ms:21600000},{label:'24h',ms:86400000},{label:'7d',ms:604800000},{label:'All',ms:null}
+  ];
+  const activeQ = timeFilter.quick;
+  return `<div class="sb-section">
+    <div class="sb-title">Quick Range</div>
+    <div class="time-quick">${ranges.map(r=>
+      `<button class="tq-btn ${activeQ===r.label?'active':''}" onclick="applyQuickTime('${r.label}',${r.ms})">${r.label}</button>`
+    ).join('')}</div>
+  </div>
+  <div class="sb-section">
+    <div class="sb-title">Custom Range</div>
+    <div class="time-custom">
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:2px">From</div>
+      <input class="time-input" type="datetime-local" id="timeFrom" value="${timeFilter.from?new Date(timeFilter.from).toISOString().slice(0,16):''}" onchange="applyCustomTime()">
+      <div style="font-size:10px;color:var(--text-dim);margin:4px 0 2px">To</div>
+      <input class="time-input" type="datetime-local" id="timeTo" value="${timeFilter.to?new Date(timeFilter.to).toISOString().slice(0,16):''}" onchange="applyCustomTime()">
+      <button class="btn" style="margin-top:6px;font-size:10px" onclick="resetTimeFilter()">Clear Time Filter</button>
+    </div>
+  </div>`;
+}
+
+function renderLevelPanel() {
+  const counts = {};
+  allLogs.forEach(l => {
+    const lv = normalizeLevel(l.level||l.Level||l.severity||'INFO');
+    counts[lv] = (counts[lv]||0) + 1;
+  });
+  const order = ['CRITICAL','ERROR','WARN','INFO','DEBUG','TRACE'];
+  return `<div class="sb-section">
+    <div class="sb-title">Log Level</div>
+    ${order.filter(lv=>counts[lv]).map(lv=>`
+      <div class="level-btn ${activeLevels.has(lv)?'active':''}" onclick="toggleLevel('${lv}')">
+        <div class="level-dot" style="background:${LEVEL_COLORS[lv]||'var(--text-dim)'}"></div>
+        <span class="level-label">${lv}</span>
+        <span class="level-count">${counts[lv].toLocaleString()}</span>
+      </div>`).join('')}
+    ${activeLevels.size?`<button class="btn" style="margin-top:6px;font-size:10px;width:100%" onclick="clearLevelFilter()">Clear Filter</button>`:''}
+  </div>`;
+}
+
+function renderFilesPanel() {
+  if (!files.length) return '<div style="padding:12px;color:var(--text-dim);font-size:11px">No files loaded</div>';
+  return `<div class="sb-section">
+    <div class="sb-title">Loaded Files (${files.length})</div>
+    ${files.map(f=>`
+      <div class="file-item">
+        <span class="file-icon">📄</span>
+        <span class="file-name" title="${f.name}">${f.name}</span>
+        <span class="file-size">${f.size}</span>
+        <span class="file-rm" onclick="removeFile(${f.id})" title="Remove">✕</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);padding:0 6px 4px 24px">${f.count.toLocaleString()} logs</div>
+    `).join('')}
+  </div>`;
+}
+
+function renderFieldsPanel() {
+  const search = (document.getElementById('fieldSearchInline')?.value||'').toLowerCase();
+  const all = Object.entries(fields)
+    .filter(([k])=>!k.startsWith('_'))
+    .filter(([k])=>!search||k.toLowerCase().includes(search))
+    .sort((a,b)=>b[1].count-a[1].count);
+  return `<div style="padding:6px 8px">
+    <input class="field-search" id="fieldSearchInline" placeholder="Filter fields…" value="${search}" oninput="renderSidebar()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+    ${all.map(([k,f])=>`
+      <div class="field-item ${expandedFields.has(k)?'expanded':''}" onclick="toggleFieldExpand('${k}')">
+        <div class="field-row">
+          <span class="field-name" title="${k}">${k}</span>
+          <span class="field-type">${f.type}</span>
+          <span class="field-count">${f.count.toLocaleString()}</span>
+        </div>
+        ${expandedFields.has(k) ? renderFieldDist(f) : ''}
+      </div>`).join('')}
+  </div>`;
+}
+
+function renderFieldDist(f) {
+  if (!f.values.length) return '';
+  const max = f.values[0].c;
+  return `<div class="field-dist">${f.values.slice(0,8).map(({v,c})=>`
+    <div class="field-bar-row">
+      <span class="field-bar-label" title="${escHTML(v)}" onclick="appendKQLFromDetail('FIELD','${escHTML(v)}')">${escHTML(String(v).slice(0,12))}</span>
+      <div class="field-bar-track"><div class="field-bar-fill" style="width:${Math.round(c/max*100)}%"></div></div>
+      <span class="field-bar-n">${c}</span>
+    </div>`).join('')}</div>`;
+}
+
+function toggleFieldExpand(k) {
+  if (expandedFields.has(k)) expandedFields.delete(k); else expandedFields.add(k);
+  renderSidebar();
+}
+
+function toggleLevel(lv) {
+  if (activeLevels.has(lv)) activeLevels.delete(lv); else activeLevels.add(lv);
+  renderSidebar();
+  runQuery();
+}
+
+function clearLevelFilter() { activeLevels.clear(); renderSidebar(); runQuery(); }
+
+function applyQuickTime(label, ms) {
+  if (!ms) { timeFilter = {from:null,to:null,quick:null}; }
+  else { timeFilter = {from:Date.now()-ms, to:Date.now(), quick:label}; }
+  renderSidebar();
+  runQuery();
+}
+
+function applyCustomTime() {
+  const fromEl = document.getElementById('timeFrom');
+  const toEl = document.getElementById('timeTo');
+  timeFilter.from = fromEl?.value ? new Date(fromEl.value).getTime() : null;
+  timeFilter.to = toEl?.value ? new Date(toEl.value).getTime() : null;
+  timeFilter.quick = null;
+  runQuery();
+}
+
+function resetTimeFilter() {
+  timeFilter = {from:null,to:null,quick:null};
+  renderSidebar();
+  document.getElementById('timelineResetBtn').style.display = 'none';
+  runQuery();
+}
+
+function normalizeLevel(v) {
+  const u = String(v).toUpperCase();
+  if (['CRITICAL','FATAL'].includes(u)) return 'CRITICAL';
+  if (u==='WARNING') return 'WARN';
+  if (u==='ERR') return 'ERROR';
+  return u || 'INFO';
+}
+
+// ── TIMELINE ────────────────────────────────────────────────────────────────
+function toggleTimeline() {
+  timelineVisible = !timelineVisible;
+  document.getElementById('timelineWrap').classList.toggle('hidden', !timelineVisible);
+  document.getElementById('timelineToggleBtn').classList.toggle('active', timelineVisible);
+}
+
+function drawTimeline() {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas || !timelineVisible) return;
+  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth - 160;
+  const H = 54;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const isLight = document.body.classList.contains('light');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = isLight ? '#f0f4f8' : '#070b12';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!isFinite(timeRange.min) || timeRange.min === timeRange.max) {
+    document.getElementById('timelineLabel').textContent = 'No timestamps';
+    return;
+  }
+
+  const BINS = Math.max(40, Math.min(160, Math.floor(W / 5)));
+  const tMin = timeRange.min, tMax = timeRange.max;
+  const binSize = (tMax - tMin) / BINS || 1;
+
+  const bins = Array.from({length:BINS}, ()=>({CRITICAL:0,ERROR:0,WARN:0,INFO:0,DEBUG:0,TRACE:0,total:0}));
+  for (const log of allLogs) {
+    const t = parseTimestamp(log);
+    if (!t || !isFinite(t)) continue;
+    const bi = Math.min(BINS-1, Math.floor((t-tMin)/binSize));
+    const lv = normalizeLevel(log.level||log.Level||log.severity||'INFO');
+    bins[bi][lv] = (bins[bi][lv]||0)+1;
+    bins[bi].total++;
+  }
+
+  const maxBin = Math.max(...bins.map(b=>b.total), 1);
+  const barW = W / BINS;
+  const ORDER = ['CRITICAL','ERROR','WARN','INFO','DEBUG','TRACE'];
+  const COLORS = {CRITICAL:'#ff4d6d',ERROR:'#ff4d6d',WARN:'#ffd700',INFO:'#00d4ff',DEBUG:'#b06dff',TRACE:'#5a7a94'};
+
+  // Grid
+  ctx.strokeStyle = isLight ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)';
+  ctx.lineWidth = 1;
+  for (let y = H*0.25; y < H; y += H*0.25) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+
+  // Bars (in filtered vs unfiltered)
+  for (let i = 0; i < BINS; i++) {
+    if (!bins[i].total) continue;
+    let y = H - 2;
+    for (const lv of ORDER) {
+      if (!bins[i][lv]) continue;
+      const bh = (bins[i][lv] / maxBin) * (H - 8);
+      ctx.fillStyle = COLORS[lv];
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(i*barW+0.5, y-bh, Math.max(1,barW-0.5), bh);
+      y -= bh;
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Time selection highlight
+  if (timeFilter.from || timeFilter.to) {
+    const x1 = timeFilter.from ? Math.max(0,((timeFilter.from-tMin)/(tMax-tMin))*W) : 0;
+    const x2 = timeFilter.to ? Math.min(W,((timeFilter.to-tMin)/(tMax-tMin))*W) : W;
+    // Dim outside selection
+    ctx.fillStyle = isLight ? 'rgba(240,244,248,.65)' : 'rgba(7,11,18,.65)';
+    ctx.fillRect(0, 0, x1, H);
+    ctx.fillRect(x2, 0, W-x2, H);
+    // Border
+    ctx.strokeStyle = isLight ? '#0077cc' : '#00d4ff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x1, 0, x2-x1, H);
+  }
+
+  // Drag selection in progress
+  if (tDrag.active) {
+    const x1 = Math.min(tDrag.x0, tDrag.x1);
+    const x2 = Math.max(tDrag.x0, tDrag.x1);
+    ctx.fillStyle = 'rgba(0,212,255,.1)';
+    ctx.fillRect(x1, 0, x2-x1, H);
+    ctx.strokeStyle = 'rgba(0,212,255,.5)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x1, 0, x2-x1, H);
+  }
+
+  // Time labels
+  ctx.fillStyle = isLight ? '#607080' : '#5a7a94';
+  ctx.font = '9px monospace';
+  const fmt = ms => { const d=new Date(ms); return d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); };
+  ctx.fillText(fmt(tMin), 3, H-3);
+  const endLabel = fmt(tMax);
+  ctx.fillText(endLabel, W - ctx.measureText(endLabel).width - 3, H-3);
+
+  document.getElementById('timelineLabel').textContent =
+    `${filteredLogs.length.toLocaleString()} / ${allLogs.length.toLocaleString()} logs`;
+}
+
+function initTimelineDrag() {
+  const canvas = document.getElementById('timelineCanvas');
+  if (!canvas) return;
+  const getX = e => e.offsetX || (e.touches?.[0]?.clientX - canvas.getBoundingClientRect().left || 0);
+  const xToMs = x => timeRange.min + (x / canvas.offsetWidth) * (timeRange.max - timeRange.min);
+
+  canvas.addEventListener('mousedown', e => {
+    tDrag = {active:true, x0:getX(e), x1:getX(e)};
+    drawTimeline();
+  });
+  canvas.addEventListener('mousemove', e => {
+    if (!tDrag.active) return;
+    tDrag.x1 = getX(e);
+    drawTimeline();
+  });
+  canvas.addEventListener('mouseup', e => {
+    if (!tDrag.active) return;
+    tDrag.active = false;
+    const x1 = Math.min(tDrag.x0, tDrag.x1);
+    const x2 = Math.max(tDrag.x0, tDrag.x1);
+    if (x2 - x1 < 4) { drawTimeline(); return; } // too small, ignore
+    timeFilter.from = xToMs(x1);
+    timeFilter.to = xToMs(x2);
+    timeFilter.quick = null;
+    document.getElementById('timelineResetBtn').style.display = '';
+    renderSidebar();
+    runQuery();
+  });
+  canvas.addEventListener('dblclick', resetTimeFilter);
+}
+
+// ── COLUMN PICKER ───────────────────────────────────────────────────────────
+function showColumnPicker() {
+  const all = Object.keys(fields).filter(k=>!k.startsWith('_')).sort();
+  pendingColumns = [...visibleColumns];
+  const grid = document.getElementById('columnModalBody');
+  grid.innerHTML = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Select columns to display (max 12). Checked = visible.</div>
+    <div class="col-grid">${all.map(c=>`
+      <label class="col-item">
+        <input type="checkbox" class="col-check" value="${c}" ${visibleColumns.includes(c)?'checked':''} onchange="togglePendingCol('${c}',this.checked)">
+        <span style="font-size:11px">${c}</span>
+      </label>`).join('')}</div>`;
+  document.getElementById('columnModal').classList.remove('hidden');
+}
+
+function togglePendingCol(c, on) {
+  if (on) { if (pendingColumns.length < 12) pendingColumns.push(c); else { toast('Max 12 columns',true); event.target.checked=false; } }
+  else pendingColumns = pendingColumns.filter(x=>x!==c);
+}
+
+function applyColumns() {
+  visibleColumns = [...pendingColumns];
+  closeColumnPicker();
+  renderTable();
+}
+
+function resetColumns() { visibleColumns = []; autoPickColumns(); closeColumnPicker(); renderTable(); }
+function closeColumnPicker() { document.getElementById('columnModal').classList.add('hidden'); }
+
+// ── QUERY CHIPS ─────────────────────────────────────────────────────────────
+const PRESET_QUERIES = [
+  {label:'Errors',q:'level:ERROR OR level:CRITICAL'},
+  {label:'HTTP 5xx',q:'status_code:>=500'},
+  {label:'Failed Auth',q:'message:*Invalid* OR message:*denied* OR message:*failed*'},
+  {label:'High Latency',q:'latency_ms:>=1000'},
+  {label:'Prod Only',q:'env:production'},
+  {label:'All',q:'*'},
+];
+
+function renderChips() {
+  const chips = document.getElementById('kqlChips');
+  const presets = PRESET_QUERIES.map(p=>
+    `<span class="chip" onclick="applyPreset('${p.q.replace(/'/g,"\\'")}')">  ${p.label}</span>`).join('');
+  const saved = savedQueries.map(s=>
+    `<span class="chip saved" onclick="applyPreset('${s.q.replace(/'/g,"\\'")}')">★ ${escHTML(s.name)}</span>`).join('');
+  const hist = queryHistory.slice(0,5).map(q=>
+    `<span class="chip history" onclick="applyPreset('${q.replace(/'/g,"\\'")}')">↺ ${escHTML(q.slice(0,30))}${q.length>30?'…':''}</span>`).join('');
+  const saveBtn = `<span class="chip" onclick="saveCurrentQuery()" style="color:var(--text-dim)">+ Save</span>`;
+  chips.innerHTML = presets + (saved?'<span style="color:var(--border2);margin:0 2px">|</span>'+saved:'') +
+    (hist?'<span style="color:var(--border2);margin:0 2px">|</span>'+hist:'') + saveBtn;
+}
+
+function applyPreset(q) { document.getElementById('kqlInput').value=q; runQuery(); }
+
+// ── STATS ───────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('statTotal').textContent = allLogs.length.toLocaleString();
+  document.getElementById('statMatched').textContent = filteredLogs.length.toLocaleString();
+  document.getElementById('showingCount').textContent = filteredLogs.length.toLocaleString();
+  document.getElementById('totalCount').textContent = filteredLogs.length.toLocaleString();
+  const errs = allLogs.filter(l=>['ERROR','CRITICAL'].includes(normalizeLevel(l.level||l.Level||l.severity||''))).length;
+  const warns = allLogs.filter(l=>normalizeLevel(l.level||l.Level||l.severity||'')==='WARN').length;
+  document.getElementById('statError').textContent = errs.toLocaleString();
+  document.getElementById('statWarn').textContent = warns.toLocaleString();
+}
+
+// ── EXPORT ──────────────────────────────────────────────────────────────────
+function exportJSON() {
+  const data = filteredLogs.map(l=>{const o={...l};delete o._fileId;delete o._raw;return o;});
+  dl(JSON.stringify(data, null, 2), 'loglens-export.json', 'application/json');
+  toast(`Exported ${filteredLogs.length.toLocaleString()} logs as JSON`);
+}
+
+function exportCSV() {
+  const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
+  const csvEsc = v => { const s=String(v??''); return s.includes(',')|| s.includes('"')|| s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
+  const rows = [cols.join(','), ...filteredLogs.map(l=>cols.map(c=>csvEsc(l[c]??'')).join(','))];
+  dl(rows.join('\n'), 'loglens-export.csv', 'text/csv');
+  toast(`Exported ${filteredLogs.length.toLocaleString()} logs as CSV`);
+}
+
+function dl(content, name, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+// ── SHARE URL ───────────────────────────────────────────────────────────────
+function shareQuery() {
+  const q = document.getElementById('kqlInput').value;
+  history.replaceState(null,'','#q='+encodeURIComponent(q));
+  navigator.clipboard.writeText(location.href).then(()=>toast('Share URL copied! (query only, no log data)'));
+}
+
+// ── DEDUP / WRAP / MARKED TOGGLES ──────────────────────────────────────────
+function toggleDedup() {
+  dedupMode = !dedupMode;
+  document.getElementById('dedupBtn').classList.toggle('active', dedupMode);
+  runQuery();
+}
+function toggleWrap() {
+  wrapMode = !wrapMode;
+  document.getElementById('wrapBtn').classList.toggle('active', wrapMode);
+  document.getElementById('logArea').classList.toggle('wrap-mode', wrapMode);
+  if (wrapMode) toast('Wrap mode — virtual scroll disabled for >5k rows');
+}
+function toggleMarked() {
+  showMarkedOnly = !showMarkedOnly;
+  document.getElementById('markedBtn').classList.toggle('active', showMarkedOnly);
+  runQuery();
+}
+
+// ── KEYBOARD SHORTCUTS ──────────────────────────────────────────────────────
+function showKbdHelp() { document.getElementById('kbdModal').classList.remove('hidden'); }
+function closeKbdHelp() { document.getElementById('kbdModal').classList.add('hidden'); }
+
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName.toLowerCase();
+  const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+  // Always available
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
+    closeDetail();
+    return;
+  }
+  if (e.key === '?' && !isInput) { showKbdHelp(); return; }
+
+  if (!isInput) {
+    if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); navigateDetail(1); return; }
+    if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); navigateDetail(-1); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigateDetail(-1); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); navigateDetail(1); return; }
+    if (e.key === 'Enter' && selectedIdx!==null) { openDetail(filteredLogs[selectedIdx]); return; }
+    if (e.key === '/') { e.preventDefault(); document.getElementById('kqlInput').focus(); return; }
+    if (e.key === 'm') { markRow(); return; }
+    if (e.key === 'c') { copyDetailJSON(); return; }
+    if (e.key === 'w') { toggleWrap(); return; }
+    if (e.key === 'd') { toggleTheme(); return; }
+    if (e.key === 't') { toggleTimeline(); return; }
+  }
+
+  if (e.key === 'Enter' && !e.shiftKey && tag === 'textarea') { e.preventDefault(); runQuery(); return; }
+  if (e.key === 'Enter' && e.ctrlKey) { runQuery(); return; }
+});
+
+// ── PANEL RESIZE ────────────────────────────────────────────────────────────
+function initResize(handleId, targetId, mode) {
+  const handle = document.getElementById(handleId);
+  const target = document.getElementById(targetId);
+  if (!handle || !target) return;
+  let startX = 0, startW = 0;
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = target.offsetWidth;
+    const onMove = ev => {
+      const delta = ev.clientX - startX;
+      const newW = mode === 'right' ? Math.max(150, startW - delta) : Math.max(150, startW + delta);
+      target.style.width = newW + 'px';
+      drawTimeline();
+    };
+    const onUp = () => { document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ── TOAST ───────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, warn=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = warn ? 'var(--red)' : 'var(--accent)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+// ── LOCAL AI ANALYST (OLLAMA) ──────────────────────────────────────────────
+const aiState = {
+  open: false,
+  connected: false,
+  models: [],
+  currentModel: null,
+  messages: [],      // {role:'user'|'assistant'|'system', content:string}
+  streaming: false,
+  abortCtrl: null,
+  numCtx: 8192,      // context window in tokens
+  logCount: 30,      // how many log entries to include in context
+};
+
+function toggleAIPanel() {
+  aiState.open = !aiState.open;
+  document.getElementById('aiPanelWrap').classList.toggle('collapsed', !aiState.open);
+  document.getElementById('aiToggleBtn').classList.toggle('active', aiState.open);
+  if (aiState.open && !aiState.connected) reconnectOllama();
+  if (aiState.open) { document.getElementById('aiInput').focus(); updateContextMeter(); }
+}
+
+async function reconnectOllama() {
+  setAIStatus('spin','Connecting…');
+  const url = document.getElementById('aiUrlInput').value.trim().replace(/\/$/,'');
+  try {
+    const r = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const models = (data.models || []).map(m => m.name || m.model || m);
+    if (!models.length) { setAIStatus('err','No models found. Run: ollama pull llama3.2'); return; }
+    aiState.models = models;
+    aiState.connected = true;
+    aiState.ollamaUrl = url;
+    // Populate editable model input
+    const inp = document.getElementById('aiModelInput');
+    // Keep user-typed model if it exists in list, else default to mistral or first available
+    const currentVal = inp.value.trim();
+    const preferred = currentVal && models.includes(currentVal) ? currentVal
+      : models.find(m => m.startsWith('mistral')) || models[0];
+    inp.value = preferred;
+    aiState.currentModel = preferred;
+    buildModelList(models);
+    document.getElementById('aiModelWrap').style.display = '';
+    document.getElementById('aiNumCtx').style.display = '';
+    document.getElementById('aiLogCount').style.display = '';
+    document.getElementById('aiQuickBtns').style.display = '';
+    document.getElementById('aiNotice').style.display = 'none';
+    setAIStatus('ok', `${models.length} model${models.length>1?'s':''} available`);
+    addAISystemMsg(`Connected to Ollama at ${url}. ${models.length} model(s): ${models.slice(0,4).join(', ')}${models.length>4?'…':''}. Load your logs and start asking!`);
+  } catch (err) {
+    aiState.connected = false;
+    // Try to distinguish "server not running" from "CORS blocked"
+    let reason = '';
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      reason = 'Timed out — Ollama is probably not running.';
+    } else if (err instanceof TypeError && err.message.includes('fetch')) {
+      // "Failed to fetch" can be CORS block OR connection refused
+      // Try a no-cors probe to see if the port is at least reachable
+      reason = 'Failed to fetch — either Ollama is not running, or CORS is blocking the request.';
+    } else {
+      reason = err.message;
+    }
+    setAIStatus('err', 'Cannot reach Ollama');
+    document.getElementById('aiNotice').style.display = '';
+    document.getElementById('aiNoticeReason').textContent = reason;
+    addAISystemMsg(`Connection failed: ${reason}\nSee the fix steps on the right ➜`);
+  }
+}
+
+function setAIStatus(state, text) {
+  const dot = document.getElementById('aiStatusDot');
+  dot.className = 'ai-status-dot' + (state==='ok'?' ok':state==='err'?' err':state==='spin'?' spin':'');
+  document.getElementById('aiStatusText').textContent = text;
+}
+
+function addAISystemMsg(text) {
+  const msgs = document.getElementById('aiMessages');
+  // Remove placeholder welcome note
+  const note = document.getElementById('aiWelcomeNote');
+  if (note) note.remove();
+  const div = document.createElement('div');
+  div.className = 'ai-msg system-note';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function buildLogContext() {
+  const sampleCount = Math.min(aiState.logCount, filteredLogs.length);
+  const sample = filteredLogs.slice(0, sampleCount).map(l => {
+    const o = {...l}; delete o._fileId; delete o._raw; return o;
+  });
+  const levelCounts = {};
+  filteredLogs.forEach(l => {
+    const lv = normalizeLevel(l.level||l.Level||l.severity||'INFO');
+    levelCounts[lv] = (levelCounts[lv]||0)+1;
+  });
+  const allLevelCounts = {};
+  allLogs.forEach(l => {
+    const lv = normalizeLevel(l.level||l.Level||l.severity||'INFO');
+    allLevelCounts[lv] = (allLevelCounts[lv]||0)+1;
+  });
+  const topServices = topN(filteredLogs, 'service', 5);
+  const topHosts = topN(filteredLogs, 'host', 5);
+  const topErrors = topN(filteredLogs.filter(l=>['ERROR','CRITICAL'].includes(normalizeLevel(l.level||l.Level||l.severity||''))), 'message', 8);
+  const fieldNames = Object.keys(fields).filter(k=>!k.startsWith('_'));
+  const timeSpan = isFinite(timeRange.min) ?
+    `${new Date(timeRange.min).toISOString()} → ${new Date(timeRange.max).toISOString()}` : 'unknown';
+
+  return `You are an expert log analyst AI assistant running 100% locally via Ollama. No data leaves the user's machine.
+
+=== LOG CONTEXT ===
+Total logs loaded: ${allLogs.length.toLocaleString()}
+Active KQL filter: "${kqlQuery}"
+Filtered/matched logs: ${filteredLogs.length.toLocaleString()}
+Time span: ${timeSpan}
+Files loaded: ${files.map(f=>f.name).join(', ') || 'sample data'}
+
+Fields available: ${fieldNames.join(', ')}
+
+Level distribution (all logs): ${JSON.stringify(allLevelCounts)}
+Level distribution (filtered): ${JSON.stringify(levelCounts)}
+${topServices.length ? 'Top services: ' + topServices.map(([v,c])=>`${v}(${c})`).join(', ') : ''}
+${topHosts.length ? 'Top hosts: ' + topHosts.map(([v,c])=>`${v}(${c})`).join(', ') : ''}
+${topErrors.length ? 'Top error messages:\n' + topErrors.map(([v,c])=>`  [${c}x] ${v}`).join('\n') : ''}
+
+=== SAMPLE LOG ENTRIES (first ${sampleCount} of filtered results) ===
+${JSON.stringify(sample, null, 2)}
+
+=== INSTRUCTIONS ===
+- Analyze the logs above thoroughly and answer the user's question
+- Reference specific values, timestamps, services, IPs from the actual logs
+- When suggesting KQL queries, wrap them in backticks like: \`level:ERROR AND service:auth*\`
+- Keep responses clear and structured; use bullet points for lists
+- If the filtered set is small, consider the full context (${allLogs.length} total logs)`;
+}
+
+function topN(logs, field, n) {
+  const cnt = {};
+  logs.forEach(l => { if (l[field]) cnt[l[field]] = (cnt[l[field]]||0)+1; });
+  return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,n);
+}
+
+// ── TOKEN / CONTEXT HELPERS ─────────────────────────────────────────────────
+function estimateTokens(text) {
+  // Rough estimate: ~3.5 chars per token for mixed English+JSON
+  return Math.ceil((text || '').length / 3.5);
+}
+
+function totalHistoryTokens() {
+  return aiState.messages.reduce((s, m) => s + estimateTokens(m.content), 0);
+}
+
+function updateContextMeter() {
+  const numCtx = aiState.numCtx;
+  // Estimate current total: existing history + system ctx + current input
+  const inputText = document.getElementById('aiInput')?.value || '';
+  const sysCtx = buildLogContext();
+  const sysTokens = estimateTokens(sysCtx);
+  const histTokens = aiState.messages.filter(m=>m.role!=='system').reduce((s,m)=>s+estimateTokens(m.content),0);
+  const inputTokens = estimateTokens(inputText);
+  const used = sysTokens + histTokens + inputTokens;
+  const pct = Math.min(100, Math.round(used / numCtx * 100));
+
+  const fill = document.getElementById('aiCtxFill');
+  const label = document.getElementById('aiCtxLabel');
+  if (!fill || !label) return;
+
+  fill.style.width = pct + '%';
+  fill.style.background = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--yellow)' : 'var(--accent)';
+
+  const fmtK = n => n >= 1000 ? (n/1000).toFixed(1)+'K' : n;
+  label.textContent = `~${fmtK(used)} / ${fmtK(numCtx)} tokens`;
+  label.className = 'ai-ctx-label' + (pct>=90?' ai-ctx-over':pct>=70?' ai-ctx-warn':'');
+
+  // Warn if over 90%
+  if (pct >= 90) label.title = 'Context nearly full — increase ctx size or clear chat';
+}
+
+function pruneHistory() {
+  // Keep system message [0] + prune oldest user/assistant pairs until under 80% budget
+  const budget = Math.floor(aiState.numCtx * 0.8);
+  while (aiState.messages.length > 1 && totalHistoryTokens() > budget) {
+    // Remove the oldest user+assistant pair (indices 1 and 2)
+    const removeCount = aiState.messages.length > 2 ? 2 : 1;
+    aiState.messages.splice(1, removeCount);
+  }
+}
+
+function setSendState(streaming) {
+  const sendBtn = document.getElementById('aiSendBtn');
+  const stopBtn = document.getElementById('aiStopBtn');
+  const inp = document.getElementById('aiInput');
+  if (!sendBtn || !stopBtn) return;
+  sendBtn.style.display = streaming ? 'none' : '';
+  stopBtn.style.display = streaming ? '' : 'none';
+  if (inp) inp.disabled = streaming;
+}
+
+function stopAI() {
+  if (aiState.abortCtrl) {
+    aiState.abortCtrl.abort();
+    toast('Stopped');
+  }
+}
+
+async function sendAIMessage(presetText) {
+  if (aiState.streaming) { toast('AI is thinking — click ⊘ Stop to interrupt', true); return; }
+  const model = (document.getElementById('aiModelInput')?.value || '').trim() || aiState.currentModel;
+  if (!model) { toast('Enter a model name first (e.g. mistral)', true); return; }
+  aiState.currentModel = model;
+
+  const input = document.getElementById('aiInput');
+  const text = (presetText || input.value).trim();
+  if (!text) return;
+  if (!presetText) input.value = '';
+
+  if (!allLogs.length) {
+    addAIMsg('assistant', '⚠ No logs loaded yet. Please load a log file first, then I can analyze it.');
+    return;
+  }
+
+  // Build / refresh system context
+  const sysCtx = buildLogContext();
+  if (!aiState.messages.length) {
+    aiState.messages.push({ role:'system', content: sysCtx });
+  } else {
+    aiState.messages[0] = { role:'system', content: sysCtx };
+  }
+
+  // Prune old history before adding new message
+  pruneHistory();
+
+  aiState.messages.push({ role:'user', content: text });
+  addAIMsg('user', text);
+  updateContextMeter();
+
+  // Thinking indicator
+  const msgs = document.getElementById('aiMessages');
+  const thinkEl = document.createElement('div');
+  thinkEl.className = 'ai-msg assistant';
+  thinkEl.innerHTML = `<div class="ai-msg-role">AI · ${model} · ${aiState.numCtx/1024|0}K ctx</div><div class="ai-thinking"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>`;
+  msgs.appendChild(thinkEl);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  aiState.streaming = true;
+  aiState.abortCtrl = new AbortController();
+  setSendState(true);
+  setAIStatus('spin', 'Thinking…');
+
+  try {
+    const r = await fetch(`${aiState.ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: aiState.abortCtrl.signal,
+      body: JSON.stringify({
+        model,
+        messages: aiState.messages,
+        stream: true,
+        options: { temperature: 0.3, num_ctx: aiState.numCtx }
+      })
+    });
+
+    if (!r.ok) throw new Error(`Ollama returned HTTP ${r.status}`);
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'ai-msg-content';
+    thinkEl.innerHTML = `<div class="ai-msg-role">AI · ${model} · ${aiState.numCtx/1024|0}K ctx</div>`;
+    thinkEl.appendChild(contentEl);
+
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let tokenCount = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const obj = JSON.parse(line);
+          const delta = obj.message?.content || obj.response || '';
+          if (delta) {
+            fullText += delta;
+            tokenCount++;
+            contentEl.innerHTML = formatAIContent(fullText);
+            msgs.scrollTop = msgs.scrollHeight;
+            // Update meter every 20 chunks to avoid thrashing
+            if (tokenCount % 20 === 0) updateContextMeter();
+          }
+          if (obj.done) {
+            // Show real token counts from Ollama if available
+            if (obj.eval_count) {
+              const label = document.getElementById('aiCtxLabel');
+              const total = (obj.prompt_eval_count||0) + (obj.eval_count||0);
+              if (label) label.textContent = `${total.toLocaleString()} / ${(aiState.numCtx).toLocaleString()} tokens (actual)`;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    aiState.messages.push({ role:'assistant', content: fullText });
+    setAIStatus('ok', `${aiState.models.length} model(s) · ${aiState.messages.length-1} msgs in history`);
+    updateContextMeter();
+
+    // Extract clickable KQL chips
+    const kqlMatches = fullText.match(/`([^`]{4,120})`/g);
+    if (kqlMatches) {
+      const chipsEl = document.createElement('div');
+      chipsEl.style.marginTop = '6px';
+      [...new Set(kqlMatches.map(m=>m.slice(1,-1)))].forEach(q => {
+        if (/[:*><=]|AND|OR|NOT/i.test(q)) {
+          const chip = document.createElement('span');
+          chip.className = 'ai-kql-chip';
+          chip.textContent = '▶ ' + q;
+          chip.title = 'Apply this KQL query';
+          chip.onclick = () => { document.getElementById('kqlInput').value = q; runQuery(); toast('KQL applied!'); };
+          chipsEl.appendChild(chip);
+        }
+      });
+      if (chipsEl.children.length) thinkEl.appendChild(chipsEl);
+    }
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      // Save the partial response if there was any content
+      const partial = thinkEl.querySelector('.ai-msg-content')?.textContent || '';
+      if (partial) {
+        aiState.messages.push({ role:'assistant', content: partial + ' [stopped]' });
+        thinkEl.insertAdjacentHTML('beforeend', '<div style="color:var(--text-dim);font-size:10px;margin-top:4px">⊘ Generation stopped — partial response saved to context</div>');
+      } else {
+        thinkEl.insertAdjacentHTML('beforeend', '<div style="color:var(--text-dim);font-size:11px;margin-top:4px">⊘ Stopped before response began</div>');
+        aiState.messages.pop(); // remove the user message too since no answer
+      }
+    } else {
+      thinkEl.innerHTML = `<div class="ai-msg-role">Error</div><div style="color:var(--red);font-size:11px">${escHTML(err.message)}</div>`;
+      setAIStatus('err', 'Error — check Ollama');
+      aiState.connected = false;
+    }
+  } finally {
+    aiState.streaming = false;
+    aiState.abortCtrl = null;
+    setSendState(false);
+    updateContextMeter();
+  }
+}
+
+function formatAIContent(text) {
+  // Basic markdown-like formatting
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code)=>`<pre><code>${code.trim()}</code></pre>`)
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<strong style="color:var(--accent)">$1</strong>')
+    .replace(/^## (.+)$/gm,'<strong style="color:var(--text-bright);font-size:13px">$1</strong>')
+    .replace(/^# (.+)$/gm,'<strong style="color:var(--text-bright);font-size:14px">$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+
+function addAIMsg(role, content) {
+  const msgs = document.getElementById('aiMessages');
+  const note = document.getElementById('aiWelcomeNote');
+  if (note) note.remove();
+  const div = document.createElement('div');
+  div.className = `ai-msg ${role}`;
+  div.innerHTML = `<div class="ai-msg-role">${role === 'user' ? 'You' : 'AI'}</div><div class="ai-msg-content">${formatAIContent(content)}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function aiKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIMessage(); }
+}
+
+function clearAIChat() {
+  if (aiState.abortCtrl) { aiState.abortCtrl.abort(); }
+  aiState.messages = [];
+  aiState.streaming = false;
+  setSendState(false);
+  document.getElementById('aiMessages').innerHTML =
+    '<div class="ai-msg system-note" id="aiWelcomeNote">Chat cleared. Load logs and ask anything.</div>';
+  updateContextMeter();
+}
+
+// ── AI QUICK ACTIONS ────────────────────────────────────────────────────────
+function aiAnalyzeLogs() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Analyze these logs thoroughly. Identify:
+1. Top errors and their frequency
+2. Affected services and hosts
+3. Any patterns or anomalies (time-based spikes, cascading failures)
+4. Performance issues (high latency, 5xx errors)
+5. Most critical issues to address first
+Be specific — reference actual values from the logs.`);
+}
+
+function aiGenerateReport() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Generate a structured incident/operations report for these logs. Include:
+## Executive Summary
+## Error Analysis (with counts and examples)
+## Timeline of Events
+## Affected Components
+## Root Cause Hypotheses
+## Recommended Actions
+Format it professionally as if presenting to a team lead.`);
+}
+
+function aiSuggestKQL() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Based on these logs, suggest 8-10 useful KQL queries to investigate further. For each:
+- Show the query in backticks
+- Explain what it finds and why it's useful
+Focus on: error patterns, performance issues, security anomalies, service dependencies.`);
+}
+
+function aiRootCause() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Perform a root cause analysis on the errors and warnings in these logs.
+- What is the most likely root cause?
+- What evidence in the logs supports this conclusion?
+- Is this a cascading failure from a single component?
+- What should be investigated next?
+Be specific and reference actual log entries.`);
+}
+
+function aiSecurityAudit() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Perform a security audit of these logs. Identify:
+1. Suspicious IP addresses or unusual access patterns
+2. Failed authentication attempts (brute force indicators)
+3. Privilege escalation or unauthorized access attempts
+4. Potential injection attacks (SQL, command, etc.)
+5. Data exfiltration indicators (unusual data volumes, odd endpoints)
+6. Any CVE-relevant patterns
+Rate overall security risk: Low / Medium / High / Critical.`);
+}
+
+// ── AI MODEL PICKER HELPERS ─────────────────────────────────────────────────
+function buildModelList(models) {
+  const list = document.getElementById('aiModelList');
+  list.innerHTML = models.map((m,i) =>
+    `<div class="ai-model-opt" data-model="${m}" onclick="selectModel('${m}')">${m}</div>`
+  ).join('');
+}
+
+function filterModelList(val) {
+  const q = val.toLowerCase();
+  document.querySelectorAll('.ai-model-opt').forEach(opt => {
+    opt.style.display = opt.dataset.model.toLowerCase().includes(q) ? '' : 'none';
+  });
+  openModelList();
+}
+
+function openModelList() {
+  if (!aiState.models.length) return;
+  document.getElementById('aiModelList').classList.add('open');
+  // Close when clicking outside
+  setTimeout(() => document.addEventListener('click', closeModelListOutside, {once:true}), 0);
+}
+
+function closeModelListOutside(e) {
+  const wrap = document.getElementById('aiModelWrap');
+  if (!wrap || wrap.contains(e.target)) return;
+  document.getElementById('aiModelList').classList.remove('open');
+}
+
+function selectModel(m) {
+  document.getElementById('aiModelInput').value = m;
+  aiState.currentModel = m;
+  document.getElementById('aiModelList').classList.remove('open');
+  // Reset all opts visibility
+  document.querySelectorAll('.ai-model-opt').forEach(o => o.style.display = '');
+  toast('Model: ' + m);
+}
+
+function modelInputKey(e) {
+  const list = document.getElementById('aiModelList');
+  const opts = [...list.querySelectorAll('.ai-model-opt:not([style*="display: none"])')];
+  const hi = list.querySelector('.highlighted');
+  const idx = hi ? opts.indexOf(hi) : -1;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    hi && hi.classList.remove('highlighted');
+    const next = opts[Math.min(opts.length-1, idx+1)];
+    if (next) { next.classList.add('highlighted'); next.scrollIntoView({block:'nearest'}); }
+    openModelList();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    hi && hi.classList.remove('highlighted');
+    const prev = opts[Math.max(0, idx-1)];
+    if (prev) { prev.classList.add('highlighted'); prev.scrollIntoView({block:'nearest'}); }
+  } else if (e.key === 'Enter') {
+    if (hi) { selectModel(hi.dataset.model); e.preventDefault(); }
+    else { list.classList.remove('open'); aiState.currentModel = e.target.value.trim(); }
+  } else if (e.key === 'Escape') {
+    list.classList.remove('open');
+  }
+}
+
+function aiStatsSummary() {
+  if (!aiState.open) toggleAIPanel();
+  sendAIMessage(`Provide a statistical summary of these logs:
+1. Request volume over time (trends, spikes)
+2. Error rate (errors/total %)
+3. Latency statistics if available (avg, p95, max)
+4. Top services/hosts by volume and by error rate
+5. HTTP status code distribution if available
+6. Any notable correlations between fields
+Present numbers clearly.`);
+}
+
+window.addEventListener('load', () => {
+  initTheme();
+  loadPersistence();
+  initTimelineDrag();
+  initResize('sidebarResize','sidebar','left');
+  initResize('detailResize','detailPanel','right');
+  renderChips();
+  // Check URL hash for pre-set query
+  if (location.hash.startsWith('#q=')) {
+    const q = decodeURIComponent(location.hash.slice(3));
+    document.getElementById('kqlInput').value = q;
+  }
+  // Window resize → redraw timeline
+  window.addEventListener('resize', ()=>{ setTimeout(drawTimeline, 100); });
+  // Initial sidebar
+  renderSidebar();
+});
+</script>
+</body>
+</html>
