@@ -151,18 +151,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
   background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
 .result-info{font-size:11px;color:var(--text-dim);flex:1;white-space:nowrap}
 .result-info span{color:var(--accent)}
-.log-scroll{flex:1;overflow:auto;position:relative}
-.log-table{width:100%;border-collapse:collapse;min-width:600px}
+.log-scroll{flex:1;overflow:auto;position:relative;overflow-anchor:none;scrollbar-gutter:stable}
+.log-table{width:100%;border-collapse:collapse;min-width:600px;table-layout:fixed}
 .log-table thead{position:sticky;top:0;z-index:10}
 .log-table th{background:var(--surface2);padding:6px 10px;text-align:left;font-size:10px;
   color:var(--text-dim);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);
   border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;font-weight:500}
 .log-table th:hover{color:var(--accent)}
 .log-table th.sorted{color:var(--accent)}
-.log-table td{padding:4px 10px;border-bottom:1px solid rgba(30,45,66,.5);border-right:1px solid rgba(30,45,66,.25);
+.log-table td{padding:3px 10px;border-bottom:1px solid rgba(30,45,66,.5);border-right:1px solid rgba(30,45,66,.25);
   vertical-align:top;font-size:12px;max-width:320px;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;cursor:pointer;height:var(--row-h);line-height:18px}
-.wrap-mode .log-table td{white-space:pre-wrap;height:auto;max-height:120px;overflow:hidden}
+.log-cell-content{height:calc(var(--row-h) - 8px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-cell-content .badge{line-height:14px}
+.wrap-mode{--row-h:116px}
+.wrap-mode .log-cell-content{white-space:pre-wrap;overflow-wrap:anywhere}
 .log-table tr:hover td{background:rgba(0,212,255,.04)}
 .log-table tr.selected td{background:rgba(0,212,255,.09)}
 .log-table tr.marked td{border-left:2px solid var(--yellow)}
@@ -457,7 +460,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
     <div class="log-toolbar">
       <span class="result-info" id="resultInfo">Showing <span id="showingCount">0</span> of <span id="totalCount">0</span></span>
       <button class="btn" id="dedupBtn" onclick="toggleDedup()" title="Deduplicate identical messages" style="font-size:10px">Dedup</button>
-      <button class="btn" id="wrapBtn" onclick="toggleWrap()" title="Toggle line wrap" style="font-size:10px">Wrap</button>
+      <button class="btn" id="wrapBtn" onclick="toggleWrap()" title="Wrap up to 6 lines per row; view full text in Log Detail" aria-pressed="false" style="font-size:10px">Wrap</button>
       <button class="btn" id="markedBtn" onclick="toggleMarked()" title="Show bookmarked rows only" style="font-size:10px">★ Marked</button>
       <button class="btn" onclick="showColumnPicker()" style="font-size:10px">⊞ Columns</button>
       <button class="btn" onclick="exportJSON()" style="font-size:10px">⬇ JSON</button>
@@ -466,6 +469,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
     </div>
     <div class="log-scroll" id="logScroll">
       <table class="log-table" id="logTable">
+        <colgroup id="logCols"></colgroup>
         <thead id="logHead"></thead>
         <tbody id="logBody"></tbody>
       </table>
@@ -733,7 +737,7 @@ let pendingColumns = [];
 let sideTab = 'time';
 let expandedFields = new Set();
 // Virtual scroll
-const ROW_H = 26, BUFFER = 40;
+const ROW_H = 26, WRAP_ROW_H = 116, BUFFER = 40;
 let vsFrom = 0, vsTo = 0, vsTotal = 0;
 let scrollRAF = null;
 // Timeline
@@ -1410,12 +1414,16 @@ function runQuery() {
 function clearQuery() { document.getElementById('kqlInput').value=''; runQuery(); }
 
 // ── VIRTUAL SCROLL ─────────────────────────────────────────────────────────
+function currentRowHeight() { return wrapMode ? WRAP_ROW_H : ROW_H; }
+
 function vsUpdate() {
   const scroll = document.getElementById('logScroll');
-  const st = scroll.scrollTop;
+  const rowHeight = currentRowHeight();
+  const headerHeight = document.getElementById('logHead').offsetHeight;
+  const st = Math.max(0, scroll.scrollTop - headerHeight);
   const vh = scroll.clientHeight;
-  const from = Math.max(0, Math.floor(st/ROW_H) - BUFFER);
-  const to = Math.min(filteredLogs.length, Math.ceil((st+vh)/ROW_H) + BUFFER);
+  const from = Math.max(0, Math.min(filteredLogs.length, Math.floor(st/rowHeight) - BUFFER));
+  const to = Math.min(filteredLogs.length, Math.ceil((st+vh)/rowHeight) + BUFFER);
   if (from === vsFrom && to === vsTo) return;
   vsFrom = from; vsTo = to;
   renderVisibleRows();
@@ -1424,8 +1432,9 @@ function vsUpdate() {
 function renderVisibleRows() {
   const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
   const tbody = document.getElementById('logBody');
-  const topH = vsFrom * ROW_H;
-  const botH = Math.max(0, (filteredLogs.length - vsTo) * ROW_H);
+  const rowHeight = currentRowHeight();
+  const topH = vsFrom * rowHeight;
+  const botH = Math.max(0, (filteredLogs.length - vsTo) * rowHeight);
   const cn = cols.length + 1; // +1 for mark col
   let html = '';
   if (topH > 0) html += `<tr class="vs-spacer" style="height:${topH}px"><td colspan="${cn}"></td></tr>`;
@@ -1449,6 +1458,13 @@ function renderTable() {
   const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
   const head = document.getElementById('logHead');
   const empty = document.getElementById('emptyState');
+  // Column widths must not depend on whichever rows happen to be mounted.
+  const widths = cols.map(c => /^(timestamp|@timestamp|time|ts|datetime)$/.test(c) ? 200
+    : /^(level|Level|severity)$/.test(c) ? 100
+    : /^(message|msg|_raw)$/.test(c) ? 420 : 180);
+  document.getElementById('logCols').innerHTML = '<col style="width:24px">' +
+    widths.map(w => `<col style="width:${w}px">`).join('');
+  document.getElementById('logTable').style.minWidth = Math.max(600, 24 + widths.reduce((s,w) => s+w, 0)) + 'px';
 
   head.innerHTML = '<tr><th style="width:24px;padding:4px 6px">#</th>' +
     cols.map(c => `<th onclick="sortBy('${c}')" class="${sortField===c?'sorted':''}" title="${c}">
@@ -1487,12 +1503,12 @@ function buildRows(cols, from, to) {
 
 function renderCell(log, col, hl) {
   const v = log[col];
-  if (v === undefined || v === null) return '<td style="color:var(--text-dim);font-size:10px">—</td>';
+  if (v === undefined || v === null) return '<td style="color:var(--text-dim);font-size:10px"><div class="log-cell-content">—</div></td>';
   if (col==='level'||col==='Level'||col==='severity') {
     const lv = normalizeLevel(String(v));
-    return `<td><span class="badge badge-${lv}">${lv||v}</span></td>`;
+    return `<td><div class="log-cell-content"><span class="badge badge-${escHTML(lv)}">${escHTML(lv||v)}</span></div></td>`;
   }
-  let sv = String(v);
+  let sv = escHTML(String(v));
   let cls = '';
   if (col==='timestamp'||col==='@timestamp'||col==='time'||col==='ts'||col==='datetime') cls='ts-val';
   else if (/^\d+\.\d+\.\d+\.\d+$/.test(sv)) cls='ip-val';
@@ -1502,8 +1518,8 @@ function renderCell(log, col, hl) {
     if (!term) continue;
     try { sv = sv.replace(new RegExp('('+escRe(term)+')','gi'), '<span class="highlight">$1</span>'); } catch {}
   }
-  const title = String(v).replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  return `<td class="${cls}" title="${title}">${sv}</td>`;
+  const title = escHTML(v).replace(/"/g,'&quot;');
+  return `<td class="${cls}" title="${title}"><div class="log-cell-content">${sv}</div></td>`;
 }
 
 function extractHighlightTerms(q) {
@@ -2088,10 +2104,22 @@ function toggleDedup() {
   runQuery();
 }
 function toggleWrap() {
+  const scroll = document.getElementById('logScroll');
+  const headerHeight = document.getElementById('logHead').offsetHeight;
+  const oldTop = scroll.scrollTop;
+  const rowOffset = Math.max(0, oldTop - headerHeight) / currentRowHeight();
   wrapMode = !wrapMode;
   document.getElementById('wrapBtn').classList.toggle('active', wrapMode);
+  document.getElementById('wrapBtn').setAttribute('aria-pressed', String(wrapMode));
   document.getElementById('logArea').classList.toggle('wrap-mode', wrapMode);
-  if (wrapMode) toast('Wrap mode — virtual scroll disabled for >5k rows');
+  const nextTop = oldTop <= headerHeight ? oldTop : headerHeight + rowOffset * currentRowHeight();
+  // Rebuild the spacers before restoring the position so the browser cannot
+  // clamp it against the previous mode's shorter scroll range.
+  vsFrom = Math.max(0, Math.min(filteredLogs.length, Math.floor(rowOffset) - BUFFER));
+  vsTo = Math.min(filteredLogs.length, Math.ceil(rowOffset + scroll.clientHeight / currentRowHeight()) + BUFFER);
+  renderVisibleRows();
+  scroll.scrollTop = nextTop;
+  vsUpdate();
 }
 function toggleMarked() {
   showMarkedOnly = !showMarkedOnly;
