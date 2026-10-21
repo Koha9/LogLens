@@ -703,6 +703,9 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
       <input id="columnLayoutName" type="text" maxlength="80" placeholder="Layout name" aria-label="Layout name">
       <button class="btn" id="columnLayoutSaveBtn" onclick="saveColumnLayout()" title="Save columns, widths, order and sorting in this browser">Save</button>
       <button class="btn" id="columnLayoutLoadBtn" onclick="loadColumnLayout()" disabled>Load</button>
+      <button class="btn" onclick="exportColumnLayout()" title="Download the current layout as a JSON file">Save File</button>
+      <button class="btn" onclick="document.getElementById('columnLayoutFile').click()" title="Load a layout from a JSON file">Load File</button>
+      <input type="file" id="columnLayoutFile" accept=".json,application/json" aria-label="Import column layout file" onchange="importColumnLayout(this.files[0]);this.value=''">
     </div>
     <div class="column-layout-status" id="columnLayoutStatus" role="status" aria-live="polite"></div>
     <div class="column-picker-info" id="columnPickerInfo" aria-live="polite"></div>
@@ -2529,16 +2532,62 @@ function readColumnLayouts() {
     if (!raw) return [];
     const data=JSON.parse(raw);
     if (data.version !== 1 || !Array.isArray(data.layouts)) throw new Error('Invalid layouts');
-    return data.layouts.filter(layout => layout && typeof layout.name === 'string' && layout.name.trim()
-      && Array.isArray(layout.columns) && layout.columns.length > 0 && layout.columns.length <= MAX_COLUMNS
-      && layout.columns.every(c => typeof c === 'string') && new Set(layout.columns).size === layout.columns.length
-      && Array.isArray(layout.widths) && layout.widths.every(entry => Array.isArray(entry) && entry.length === 2
-        && typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] >= MIN_COLUMN_WIDTH)
-      && (layout.sortField === null || typeof layout.sortField === 'string')
-      && [1,-1].includes(layout.sortDir)).slice(0,30);
+    return data.layouts.filter(isValidColumnLayout).slice(0,30);
   } catch {
     columnLayoutStatus('Saved layouts are unavailable. Browser storage may be blocked or damaged.',true);
     return null;
+  }
+}
+
+function isValidColumnLayout(layout) {
+  return Boolean(layout && typeof layout.name === 'string' && layout.name.trim() && layout.name.length <= 80
+      && Array.isArray(layout.columns) && layout.columns.length > 0 && layout.columns.length <= MAX_COLUMNS
+      && layout.columns.every(c => typeof c === 'string') && new Set(layout.columns).size === layout.columns.length
+      && Array.isArray(layout.widths) && layout.widths.every(entry => Array.isArray(entry) && entry.length === 2
+        && typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] >= MIN_COLUMN_WIDTH && entry[1] <= 100000)
+      && (layout.sortField === null || typeof layout.sortField === 'string')
+      && [1,-1].includes(layout.sortDir)
+      && (layout.view === undefined || ['tree','list'].includes(layout.view))
+      && (layout.expanded === undefined || (Array.isArray(layout.expanded) && layout.expanded.every(id => typeof id === 'string'))));
+}
+
+function currentColumnLayout(name) {
+  const widths=new Map([...columnWidths].filter(([field]) => Object.hasOwn(fields,field)));
+  pendingColumns.forEach(field => widths.set(field,getColumnWidth(field)));
+  return { name, columns:[...pendingColumns], widths:[...widths], sortField, sortDir,
+    view:columnPickerView, expanded:[...expandedColumnNodes] };
+}
+
+function exportColumnLayout() {
+  if (!pendingColumns.length) { columnLayoutStatus('Select at least one column before saving.',true); return; }
+  const name=document.getElementById('columnLayoutName').value.trim().slice(0,80) || 'Column layout';
+  const layout=currentColumnLayout(name);
+  if (!isValidColumnLayout(layout)) { columnLayoutStatus('Layout contains invalid settings and cannot be exported.',true); return; }
+  const filename='loglens-layout-' + name.replace(/[\\/:*?"<>|\x00-\x1f]/g,'_') + '.json';
+  dl(JSON.stringify({type:'loglens-column-layout',version:1,layout},null,2),filename,'application/json');
+  columnLayoutStatus(`Exported “${name}” as a JSON download.`);
+}
+
+function parseColumnLayoutFile(text) {
+  const data=JSON.parse(text.replace(/^\uFEFF/,''));
+  if (!data || data.type !== 'loglens-column-layout' || data.version !== 1 || !isValidColumnLayout(data.layout)) {
+    throw new Error('Invalid layout file');
+  }
+  return data.layout;
+}
+
+async function importColumnLayout(file) {
+  if (!file) return;
+  if (file.size > 1048576) { columnLayoutStatus('Layout files must be smaller than 1 MB.',true); return; }
+  const session=columnPickerSnapshot;
+  if (session === null) return;
+  try {
+    const text=await file.text();
+    if (columnPickerSnapshot !== session) return;
+    const layout=parseColumnLayoutFile(text);
+    if (applyColumnLayout(layout)) document.getElementById('columnLayoutName').value=layout.name;
+  } catch {
+    if (columnPickerSnapshot === session) columnLayoutStatus('Could not load file. Choose a valid LogLens layout JSON file.',true);
   }
 }
 
@@ -2566,10 +2615,8 @@ function saveColumnLayout() {
   if (!layouts) return;
   const index=layouts.findIndex(layout => layout.name === name);
   if (index < 0 && layouts.length >= 30) { columnLayoutStatus('Up to 30 layouts can be saved. Use an existing name to replace one.',true); return; }
-  const widths=new Map([...columnWidths].filter(([field]) => Object.hasOwn(fields,field)));
-  pendingColumns.forEach(field => widths.set(field,getColumnWidth(field)));
-  const layout={ name, columns:[...pendingColumns], widths:[...widths], sortField, sortDir,
-    view:columnPickerView, expanded:[...expandedColumnNodes] };
+  const layout=currentColumnLayout(name);
+  if (!isValidColumnLayout(layout)) { columnLayoutStatus('Layout contains invalid settings and cannot be saved.',true); return; }
   if (index < 0) layouts.push(layout); else layouts[index]=layout;
   try { localStorage.setItem(COLUMN_LAYOUTS_KEY,JSON.stringify({version:1,layouts})); }
   catch { columnLayoutStatus('Could not save layout. Browser storage may be blocked or full.',true); return; }
@@ -2584,9 +2631,13 @@ function loadColumnLayout() {
   if (!layouts) return;
   const layout=layouts.find(item => item.name === name);
   if (!layout) { columnLayoutStatus('Select a saved layout to load.',true); return; }
+  applyColumnLayout(layout);
+}
+
+function applyColumnLayout(layout) {
   const available=new Set(availableColumns());
   const columns=layout.columns.filter(field => available.has(field));
-  if (!columns.length) { columnLayoutStatus('This layout has no fields available in the current logs.',true); return; }
+  if (!columns.length) { columnLayoutStatus('This layout has no fields available in the current logs.',true); return false; }
   if (cancelColumnReorder) cancelColumnReorder();
   pendingColumns=columns;
   columnWidths.clear();
@@ -2601,7 +2652,8 @@ function loadColumnLayout() {
   document.getElementById('columnPickerSearch').value='';
   renderColumnPicker();
   const skipped=layout.columns.length-columns.length;
-  columnLayoutStatus(`Loaded “${name}”${skipped ? `; skipped ${skipped} unavailable field(s)` : ''}. Apply keeps it; Cancel restores the previous layout.`);
+  columnLayoutStatus(`Loaded “${layout.name}”${skipped ? `; skipped ${skipped} unavailable field(s)` : ''}. Apply keeps it; Cancel restores the previous layout.`);
+  return true;
 }
 
 function buildColumnPickerTree() {
