@@ -283,7 +283,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
 /* ── AI PANEL ─────────────────────────────────────────────────────────────── */
 .ai-panel-wrap{flex-shrink:0;background:var(--surface);border-top:2px solid var(--border);
   display:flex;flex-direction:column;max-height:380px;min-height:220px;transition:max-height .25s}
-.ai-panel-wrap.collapsed{max-height:0;overflow:hidden;border:none}
+.ai-panel-wrap[hidden]{display:none}
 .ai-panel-header{display:flex;align-items:center;gap:8px;padding:6px 14px;
   border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
 .ai-panel-title{font-family:var(--display);font-size:13px;font-weight:700;
@@ -413,7 +413,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
     <button class="btn icon" onclick="shareQuery()" title="Copy share URL (query only)">🔗</button>
     <button class="btn icon" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">⌨</button>
     <div class="vdiv"></div>
-    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" title="Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI</button>
+    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" role="switch" aria-checked="false" aria-controls="aiPanelWrap" title="Turn on Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI: Off</button>
   </div>
 </div>
 
@@ -504,7 +504,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
 </div>
 
 <!-- AI PANEL -->
-<div class="ai-panel-wrap collapsed" id="aiPanelWrap">
+<div class="ai-panel-wrap" id="aiPanelWrap" hidden>
   <div class="ai-panel-header">
     <div class="ai-status-dot" id="aiStatusDot"></div>
     <span class="ai-panel-title">🤖 Local AI Analyst</span>
@@ -543,7 +543,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
       <input class="ai-url-input" id="aiUrlInput" value="http://localhost:11434" placeholder="Ollama URL" title="Ollama base URL">
       <button class="btn" onclick="reconnectOllama()" style="font-size:10px;padding:3px 8px">Connect</button>
       <button class="btn" onclick="clearAIChat()" style="font-size:10px;padding:3px 8px">Clear</button>
-      <button class="btn" onclick="toggleAIPanel()" style="font-size:10px;padding:3px 8px">✕</button>
+      <button class="btn" onclick="setAIPanelOpen(false)" title="Turn off Local AI Analyst" aria-label="Turn off Local AI Analyst" style="font-size:10px;padding:3px 8px">✕</button>
     </div>
   </div>
   <div class="ai-panel-body">
@@ -746,6 +746,7 @@ let savedQueries = [];
 const HISTORY_KEY = 'loglens_history';
 const SAVED_KEY = 'loglens_saved';
 const THEME_KEY = 'loglens_theme';
+const AI_OPEN_KEY = 'loglens_ai_open';
 
 const LEVEL_COLORS = {
   ERROR:'#ff4d6d', CRITICAL:'#ff4d6d', FATAL:'#ff4d6d',
@@ -2153,11 +2154,36 @@ const aiState = {
 };
 
 function toggleAIPanel() {
-  aiState.open = !aiState.open;
-  document.getElementById('aiPanelWrap').classList.toggle('collapsed', !aiState.open);
-  document.getElementById('aiToggleBtn').classList.toggle('active', aiState.open);
-  if (aiState.open && !aiState.connected) reconnectOllama();
-  if (aiState.open) { document.getElementById('aiInput').focus(); updateContextMeter(); }
+  setAIPanelOpen(!aiState.open);
+}
+
+function setAIPanelOpen(open, { persist = true, focus = true } = {}) {
+  aiState.open = Boolean(open);
+  const panel = document.getElementById('aiPanelWrap');
+  const toggle = document.getElementById('aiToggleBtn');
+  const hadFocus = panel.contains(document.activeElement);
+  panel.hidden = !aiState.open;
+  toggle.classList.toggle('active', aiState.open);
+  toggle.setAttribute('aria-checked', String(aiState.open));
+  toggle.textContent = aiState.open ? '🤖 AI: On' : '🤖 AI: Off';
+  toggle.title = `${aiState.open ? 'Turn off' : 'Turn on'} Local AI Analyst (Ollama)`;
+  if (persist) {
+    try { localStorage.setItem(AI_OPEN_KEY, String(aiState.open)); } catch {}
+  }
+  if (aiState.open) {
+    if (!aiState.connected) reconnectOllama();
+    if (focus) document.getElementById('aiInput').focus();
+    updateContextMeter();
+  } else if (hadFocus) {
+    toggle.focus();
+  }
+  drawTimeline();
+}
+
+function initAIPanel() {
+  let open = false;
+  try { open = localStorage.getItem(AI_OPEN_KEY) === 'true'; } catch {}
+  setAIPanelOpen(open, { persist: false, focus: false });
 }
 
 async function reconnectOllama() {
@@ -2672,6 +2698,7 @@ window.addEventListener('load', () => {
   window.addEventListener('resize', ()=>{ setTimeout(drawTimeline, 100); });
   // Initial sidebar
   renderSidebar();
+  initAIPanel();
 });
 </script>
 </body>
