@@ -49,6 +49,7 @@ No servers. No SaaS. No subscriptions. Just open the HTML file.
 |--------|---------|
 | **JSON / NDJSON** | Arrays and newline-delimited |
 | **CSV** | Auto-header detection, quoted fields |
+| **AWS log export CSV** | Each CSV record becomes one log event, including multiline messages and stack traces. Unwraps `timestamp,message` (also `@timestamp,@message`), discards the outer timestamp, and parses message JSON or text. Timestamps inside messages are preserved. |
 | **Syslog** | RFC 3164 — `host proc[pid]: msg` |
 | **Apache / Nginx** | Access logs + error logs |
 | **Log4j / Log4net** | `timestamp [thread] LEVEL class - msg` |

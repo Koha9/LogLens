@@ -1140,9 +1140,10 @@ function loadPasted() {
 function hideOverlay() { document.getElementById('uploadOverlay').style.display = 'none'; }
 
 // ── AUTO-PARSER ─────────────────────────────────────────────────────────────
-function parseAuto(text) {
+function parseAuto(text, detectCSV=true) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   if (!lines.length) return [];
+  if (detectCSV && isAWSCSVHeaders(splitCSVLine(lines[0]))) return parseCSV(text);
   // 1. JSON array
   if (text.trimStart().startsWith('[')) {
     try { const a = JSON.parse(text); if (Array.isArray(a) && a.length) return normalizeAll(a); } catch {}
@@ -1248,28 +1249,89 @@ function parseTextLogs(lines) {
 }
 
 function parseCSV(text) {
-  const lines = text.split('\n');
-  if (!lines.length) return [];
-  const headers = splitCSVLine(lines[0]);
-  return lines.slice(1).filter(l=>l.trim()).map(line => {
-    const vals = splitCSVLine(line);
-    const obj = {};
-    headers.forEach((h,i) => { obj[h] = vals[i] ?? ''; });
+  const headerLine=text.replace(/^\uFEFF/,'').split(/\r?\n/,1)[0];
+  const aws=isAWSCSVHeaders(splitCSVLine(headerLine));
+  const rows=readCSVRows(text.replace(/^\uFEFF/,''),aws);
+  if (!rows.length) return [];
+  const headers=rows[0].map(h=>h.trim());
+  const records=rows.slice(1).filter(row=>row.some(value=>value.length));
+  if (aws) {
+    const messageIndex=headers.findIndex(h=>h.replace(/^@/,'').toLowerCase() === 'message');
+    return records.flatMap(row=>parseAWSMessage(row[messageIndex] || ''));
+  }
+  return records.map(values => {
+    const obj=Object.create(null);
+    headers.forEach((header,i)=>{obj[header]=values[i] ?? '';});
     return obj;
   });
 }
 
-function splitCSVLine(line) {
-  const out = []; let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') { inQ = !inQ; }
-    else if (c === ',' && !inQ) { out.push(cur.trim()); cur = ''; }
-    else cur += c;
-  }
-  out.push(cur.trim());
-  return out;
+function isAWSCSVHeaders(headers) {
+  const names=headers.map(h=>h.trim().replace(/^\uFEFF/,'').replace(/^@/,'').toLowerCase());
+  return names.length === 2 && names.includes('timestamp') && names.includes('message');
 }
+
+function parseAWSMessage(message) {
+  if (!message.trim()) return [];
+  try {
+    const value=parseEventJSON(message);
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      const event=normalizeLog(value);
+      event._raw=message;
+      return [event];
+    }
+    return [{message,level:detectLevel(message),_raw:message}];
+  } catch {}
+  // A CSV record is one event, including any embedded stack trace or newlines.
+  // Parse only its first line for text metadata, then retain the full body.
+  const end=message.search(/[\r\n]/);
+  const firstLine=end < 0 ? message : message.slice(0,end);
+  const event=parseAuto(firstLine,false)[0] || {};
+  if (end >= 0) event.message=(event.message || firstLine) + message.slice(end);
+  if (!event.message) event.message=message;
+  event._raw=message;
+  return [event];
+}
+
+function parseEventJSON(text) {
+  try { return JSON.parse(text); } catch {}
+  // Some CSV exporters materialize JSON string escapes as literal newlines/tabs.
+  // Repair control characters only inside strings; leave JSON structure intact.
+  let result='', quoted=false, escaped=false;
+  for (const c of text) {
+    if (escaped) { result+=c; escaped=false; continue; }
+    if (quoted && c === '\\') { result+=c; escaped=true; continue; }
+    if (c === '"') quoted=!quoted;
+    result+=quoted && c.charCodeAt(0)<32 ? '\\u'+c.charCodeAt(0).toString(16).padStart(4,'0') : c;
+  }
+  return JSON.parse(result);
+}
+
+function readCSVRows(text, spreadsheetPrefix=false) {
+  const rows=[]; let row=[], value='', quoted=false, started=false;
+  for (let i=0; i<text.length; i++) {
+    const c=text[i];
+    if (quoted) {
+      if (c === '"' && text[i+1] === '"') { value+='"'; i++; }
+      else if (c === '"') quoted=false;
+      else value+=c;
+      continue;
+    }
+    // AWS exports can prefix a quoted spreadsheet-sensitive message with '.
+    if (spreadsheetPrefix && !value && c === "'" && text[i+1] === '"') { started=true; continue; }
+    if (c === '"' && !value) { quoted=true; started=true; }
+    else if (c === ',') { row.push(value); value=''; started=true; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      if (started || value || row.length) { row.push(value); rows.push(row); }
+      row=[]; value=''; started=false;
+    } else { value+=c; started=true; }
+  }
+  if (started || value || row.length) { row.push(value); rows.push(row); }
+  return rows;
+}
+
+function splitCSVLine(line) { return readCSVRows(line)[0] || []; }
 
 function formatXrdpTs(s) {
   const m = /^(\d{4})(\d{2})(\d{2})-(\d{2}:\d{2}:\d{2})$/.exec(s);
