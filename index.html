@@ -185,7 +185,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 /* ── DETAIL PANEL ─────────────────────────────────────────────────────────── */
 .detail-panel{width:400px;min-width:200px;background:var(--surface);border-left:1px solid var(--border);
   display:flex;flex-direction:column;flex-shrink:0;transition:width .2s;position:relative}
-.detail-panel.closed{width:0;overflow:hidden;border:none}
+.detail-panel[hidden]{display:none}
 .detail-resize{position:absolute;left:0;top:0;bottom:0;width:4px;cursor:col-resize;z-index:5}
 .detail-resize:hover,.detail-resize:active{background:var(--accent);opacity:.5}
 .detail-header{display:flex;align-items:center;gap:6px;padding:8px 12px;
@@ -413,7 +413,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
     <button class="btn icon" onclick="shareQuery()" title="Copy share URL (query only)">🔗</button>
     <button class="btn icon" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">⌨</button>
     <div class="vdiv"></div>
-    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" role="switch" aria-checked="false" aria-controls="aiPanelWrap" title="Turn on Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI: Off</button>
+    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" role="switch" aria-checked="false" aria-controls="aiPanelWrap" title="Turn on Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI</button>
   </div>
 </div>
 
@@ -462,7 +462,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
       <button class="btn" onclick="showColumnPicker()" style="font-size:10px">⊞ Columns</button>
       <button class="btn" onclick="exportJSON()" style="font-size:10px">⬇ JSON</button>
       <button class="btn" onclick="exportCSV()" style="font-size:10px">⬇ CSV</button>
-      <button class="btn" id="detailToggleBtn" onclick="toggleDetail()" style="font-size:10px">◧ Detail</button>
+      <button class="btn" id="detailToggleBtn" onclick="toggleDetail()" aria-expanded="false" aria-controls="detailPanel" title="Show Log Detail" style="font-size:10px">◧ Detail</button>
     </div>
     <div class="log-scroll" id="logScroll">
       <table class="log-table" id="logTable">
@@ -477,7 +477,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
   </div>
 
   <!-- DETAIL PANEL -->
-  <div class="detail-panel closed" id="detailPanel">
+  <div class="detail-panel" id="detailPanel" hidden>
     <div class="detail-resize" id="detailResize"></div>
     <div class="detail-header">
       <span class="detail-title">Log Detail</span>
@@ -485,7 +485,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:3px
         <button class="btn" id="prevRowBtn" onclick="navigateDetail(-1)" title="Previous (k)" style="font-size:10px;padding:3px 8px">↑</button>
         <button class="btn" id="nextRowBtn" onclick="navigateDetail(1)" title="Next (j)" style="font-size:10px;padding:3px 8px">↓</button>
         <button class="btn icon" onclick="markRow()" title="Bookmark (m)" style="font-size:12px">★</button>
-        <button class="btn" onclick="closeDetail()" style="font-size:10px;padding:3px 8px">✕</button>
+        <button class="btn" onclick="closeDetail()" title="Hide Log Detail" aria-label="Hide Log Detail" style="font-size:10px;padding:3px 8px">✕</button>
       </div>
     </div>
     <div class="detail-tabs">
@@ -1178,6 +1178,8 @@ function removeFile(fileId) {
 }
 
 function clearLogs() {
+  closeDetail();
+  document.getElementById('detailScroll').innerHTML = '';
   allLogs=[]; filteredLogs=[]; fields={}; files=[]; markedRows.clear();
   activeLevels.clear(); selectedIdx=null; sortField=null; sortDir=1;
   timeFilter={from:null,to:null,quick:null}; timeRange={min:Infinity,max:-Infinity};
@@ -1336,6 +1338,7 @@ function matchingParen(s) {
 
 // ── QUERY RUNNER ───────────────────────────────────────────────────────────
 function runQuery() {
+  const selectedLog = selectedIdx === null ? null : filteredLogs[selectedIdx];
   const q = document.getElementById('kqlInput').value || '*';
   kqlQuery = q;
   addHistory(q);
@@ -1384,6 +1387,16 @@ function runQuery() {
       const av=a[sortField]??'', bv=b[sortField]??'';
       return av<bv?-sortDir:av>bv?sortDir:0;
     });
+  }
+
+  // Preserve the selected log across filtering and sorting, not its old row index.
+  const nextSelectedIdx = selectedLog ? filteredLogs.indexOf(selectedLog) : -1;
+  selectedIdx = nextSelectedIdx >= 0 ? nextSelectedIdx : null;
+  if (selectedIdx === null) {
+    closeDetail();
+    document.getElementById('detailScroll').innerHTML = '';
+  } else if (detailOpen) {
+    renderDetail(filteredLogs[selectedIdx]);
   }
 
   vsFrom=0; vsTo=0;
@@ -1533,10 +1546,22 @@ function sortBy(field) {
 
 // ── DETAIL PANEL ───────────────────────────────────────────────────────────
 function openDetail(log) {
-  detailOpen = true;
-  document.getElementById('detailPanel').classList.remove('closed');
-  document.getElementById('detailToggleBtn').classList.add('active');
+  if (!log) return;
   renderDetail(log);
+  setDetailOpen(true);
+}
+
+function setDetailOpen(open) {
+  detailOpen = Boolean(open);
+  const panel = document.getElementById('detailPanel');
+  const toggle = document.getElementById('detailToggleBtn');
+  const hadFocus = panel.contains(document.activeElement);
+  panel.hidden = !detailOpen;
+  toggle.classList.toggle('active', detailOpen);
+  toggle.setAttribute('aria-expanded', String(detailOpen));
+  toggle.title = detailOpen ? 'Hide Log Detail' : 'Show Log Detail';
+  if (!detailOpen && hadFocus) toggle.focus();
+  drawTimeline();
 }
 
 function renderDetail(log) {
@@ -1606,18 +1631,20 @@ function switchDetailTab(tab) {
 }
 
 function closeDetail() {
-  detailOpen = false;
-  document.getElementById('detailPanel').classList.add('closed');
-  document.getElementById('detailToggleBtn').classList.remove('active');
+  setDetailOpen(false);
 }
 
 function toggleDetail() {
   if (detailOpen) closeDetail();
-  else if (selectedIdx !== null) openDetail(filteredLogs[selectedIdx]);
-  else toast('Select a row first');
+  else if (filteredLogs.length) {
+    if (selectedIdx === null || !filteredLogs[selectedIdx]) selectedIdx = 0;
+    openDetail(filteredLogs[selectedIdx]);
+    renderVisibleRows();
+  } else toast('No logs to display. Load logs or adjust filters first.');
 }
 
 function navigateDetail(dir) {
+  if (!filteredLogs.length) { selectedIdx = null; closeDetail(); return; }
   if (selectedIdx === null && filteredLogs.length) { selectedIdx = 0; }
   else if (selectedIdx === null) return;
   selectedIdx = Math.max(0, Math.min(filteredLogs.length-1, selectedIdx + dir));
@@ -2165,7 +2192,6 @@ function setAIPanelOpen(open, { persist = true, focus = true } = {}) {
   panel.hidden = !aiState.open;
   toggle.classList.toggle('active', aiState.open);
   toggle.setAttribute('aria-checked', String(aiState.open));
-  toggle.textContent = aiState.open ? '🤖 AI: On' : '🤖 AI: Off';
   toggle.title = `${aiState.open ? 'Turn off' : 'Turn on'} Local AI Analyst (Ollama)`;
   if (persist) {
     try { localStorage.setItem(AI_OPEN_KEY, String(aiState.open)); } catch {}
