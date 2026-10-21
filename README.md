@@ -24,15 +24,17 @@ No servers. No SaaS. No subscriptions. Just open the HTML file.
 
 ### 🔍 Powerful Query Engine
 - **KQL syntax** — `level:ERROR AND service:auth*`
+- **Nested fields** — select, filter, sort, and export object children such as `request/user/name:alice` or `request/latency:>=100`. Arrays containing objects expose indexed paths such as `items/0/name`; whole objects and arrays can also be displayed as JSON.
 - **Boolean logic** — `AND`, `OR`, `NOT`, parentheses
 - **Ranges** — `status_code:>=500`, `latency_ms:<=100`
-- **Wildcards** — `message:*timeout*`, `src_ip:10.0.*`; use **\* Wildcard** in the top toolbar to hide or show the KQL query panel. Hiding the panel preserves the active query and its matching behavior.
+- **Wildcards** — `message:*timeout*`, `src_ip:10.0.*`; use **Wildcard** in the top toolbar to hide or show the KQL query panel. Hiding the panel preserves the active query and its matching behavior.
 - **Regex** — `message:/timeout|refused/i`, `src_ip:/^192\.168\./`
 - **Free text search** — type anything, searches all fields
 
 ### 📊 Visualization
 - **Timeline histogram** — canvas-based, color-coded by log level
 - **Drag to select** a time range directly on the chart
+- **Resizable timeline** — drag its bottom edge to adjust height; double-click the handle to restore the default. Selection continues outside the chart, and Esc cancels it. The floating ↺ button resets the time filter without resizing the chart.
 - **Quick time filters** — Last 5m / 30m / 1h / 6h / 24h / 7d / All
 - **Custom from/to** datetime pickers
 - **Field value distribution** bars (top-10 values per field, click to expand)
@@ -99,7 +101,9 @@ Powered by [Ollama](https://ollama.com), the AI panel lets you chat with your lo
 - **Collapsible top toolbar** — expanded by default; use **Toolbar** at the upper right to hide or restore the logo, statistics, and controls.
 - **Keyboard-first** — `j/k` rows, `/` search, `m` bookmark, `c` copy, `d` theme, `?` help
 - **Detail panel** — Fields / Raw / JSON Tree tabs, prev/next row navigation
-- **Column picker** — choose exactly which columns to display (up to 12)
+- **Column picker** — switch between a folder-style Tree and an ordered List, search paths, and choose up to 12 columns. Selected list items follow the table's left-to-right order; drag their left-hand grips to reorder. Changes preview immediately; Apply keeps them and Cancel restores the previous columns.
+- **Saved column layouts** — in Column Picker, enter a name and choose Save to store visible columns, their order and widths, row sorting, and Tree/List view in this browser. Select a saved layout and choose Load to preview it; Apply keeps it, while Cancel restores the previous layout. Reusing a name overwrites that layout. Fields absent from the current logs are skipped.
+- **Column order** — drag a table header's grip to move it left or right, independently of the resize handle. Grips also support arrow keys. Nested paths use colored `/` separators.
 - **Resizable columns** — drag the right edge of a column header (80px minimum); double-click to restore its default width. Focus the handle and use arrow keys to adjust, or Home to reset.
 - **Resizable panels** — drag handles on sidebar and detail panel
 - **Saved queries** — name and persist your favourite KQL queries
@@ -170,7 +174,7 @@ xdg-open LogLens.html    # Linux
    > [System.Environment]::SetEnvironmentVariable("OLLAMA_ORIGINS","*","User")
    > ```
 
-4. **Click 🤖 AI** in LogLens → **Connect** → start asking questions
+4. **Click AI Analyst** in LogLens → **Connect** → start asking questions
 
 ---
 
@@ -224,6 +228,8 @@ level:ERROR AND service:api-gateway AND latency_ms:>=500 AND NOT method:OPTIONS
 ---
 
 ## 🏗️ Architecture
+
+Run the dependency-free column regression tests with `node tests/columns.test.cjs`. They cover nested fields, query behavior, sorting/export, picker transactions, and column ordering; they use a DOM double and do not check browser layout.
 
 LogLens is intentionally a **single HTML file** (~2,500 lines). No build step, no npm, no dependencies, no CDN (except optional Google Fonts for the UI font — falls back to system monospace).
 

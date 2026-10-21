@@ -41,7 +41,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .topbar{display:flex;align-items:center;gap:8px;padding:4px 90px 4px 8px;
   overflow-x:auto;min-height:34px;scrollbar-width:thin}
 .topbar[hidden]{display:none}
-.toolbar-toggle{position:absolute;right:4px;top:3px;z-index:20}
+.toolbar-toggle{position:absolute;right:4px;top:4px;z-index:20}
 .logo{font-family:var(--display);font-size:18px;font-weight:800;color:var(--accent);
   letter-spacing:-0.5px;white-space:nowrap;user-select:none}
 .logo span{color:var(--text-dim);font-weight:400}
@@ -51,7 +51,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .stat{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);white-space:nowrap}
 .stat-val{color:var(--text-bright);font-weight:600}
 .stat-dot{width:6px;height:6px;border-radius:0;flex-shrink:0}
-.topbar-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.topbar-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.topbar-action-group{display:flex;gap:4px;align-items:center}
+.topbar-action-group+.topbar-action-group{border-left:1px solid var(--border2);padding-left:8px}
+.topbar-actions .btn,.topbar-shell .toolbar-toggle{display:inline-flex;align-items:center;justify-content:center;
+  height:26px;padding:0 9px;font-size:11px;line-height:16px;transition:background .15s,color .15s,border-color .15s}
+.topbar-actions .btn{min-width:60px}
 /* ── BUTTONS ─────────────────────────────────────────────────────────────── */
 .btn{padding:3px 8px;border-radius:0;border:1px solid var(--border2);
   background:var(--surface2);color:var(--text);font-family:var(--mono);font-size:11px;line-height:16px;
@@ -232,8 +237,9 @@ body.resizing-column,body.resizing-column *{cursor:col-resize!important;user-sel
   display:flex;align-items:flex-start;gap:4px}
 .detail-val-text{flex:1}
 .copy-btn{font-size:10px;color:var(--text-dim);cursor:pointer;opacity:0;transition:opacity .1s;
-  flex-shrink:0;padding:1px 3px}
+  flex-shrink:0;padding:1px 3px;background:none;border:0}
 .detail-field:hover .copy-btn{opacity:1}
+.copy-btn:focus-visible{opacity:1}
 .copy-btn:hover{color:var(--accent)}
 .raw-view{font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.6}
 /* JSON Tree */
@@ -281,10 +287,39 @@ input[type=file]{display:none}
 .modal-body{overflow-y:auto;padding:14px 16px;flex:1}
 .modal-footer{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
 /* Column picker */
-.col-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.col-item{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:0;
-  cursor:pointer;transition:background .1s}
-.col-item:hover{background:var(--surface2)}
+#columnModal .modal{width:94%;max-width:800px;min-width:0;height:min(640px,85vh)}
+.column-picker-toolbar{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.column-picker-search{flex:1;min-width:140px;background:var(--bg);border:1px solid var(--border2);color:var(--text);
+  font:11px var(--mono);padding:5px 8px;height:28px;outline:none}
+.column-picker-search:focus{border-color:var(--accent)}
+.column-layout-controls{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.column-layout-controls input,.column-layout-controls select{min-width:100px;flex:1;height:28px;padding:4px 6px;
+  background:var(--bg);border:1px solid var(--border2);border-radius:0;color:var(--text);font:11px var(--mono)}
+.column-layout-controls .btn{height:28px}
+.column-layout-status{padding:0 8px;color:var(--text-dim);font-size:10px;min-height:18px;line-height:18px}
+.column-picker-info{padding:5px 8px;color:var(--text-dim);font-size:10px;border-bottom:1px solid var(--border)}
+#columnModalBody{padding:4px 8px;min-height:0;scrollbar-gutter:stable;overflow:auto}
+.column-picker-row{display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 6px;border-bottom:1px solid var(--border)}
+.column-picker-row:hover{background:var(--surface2)}
+.column-picker-row.selected{background:var(--accent-glow)}
+.column-picker-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.field-separator{color:var(--accent);padding:0 3px;font-weight:700}
+.column-picker-type{font-size:10px;color:var(--text-dim);flex-shrink:0}
+.column-tree-children{padding-left:18px}
+.column-tree-toggle{border:0;background:none;color:var(--accent);cursor:pointer;width:20px;flex-shrink:0;font:12px var(--mono)}
+.column-drag{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:24px;
+  padding:0;border:1px solid transparent;background:none;color:var(--text-dim);cursor:grab;touch-action:none;font:14px var(--mono)}
+.column-drag:hover,.column-drag:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+.column-drag:disabled{opacity:.25;cursor:default}
+.column-heading{display:flex;align-items:center;gap:3px;padding-right:6px}
+.column-heading .log-column-label{flex:1;min-width:0;padding-right:0}
+.column-heading .column-drag{width:16px;height:18px}
+[data-reorder-field].drop-before{box-shadow:inset 0 2px var(--accent)}
+[data-reorder-field].drop-after{box-shadow:inset 0 -2px var(--accent)}
+th[data-reorder-field].drop-before{box-shadow:inset 3px 0 var(--accent)}
+th[data-reorder-field].drop-after{box-shadow:inset -3px 0 var(--accent)}
+.column-picker-empty{padding:24px 8px;font-size:12px;color:var(--text-dim)}
+body.reordering-column,body.reordering-column *{cursor:grabbing!important;user-select:none!important}
 .col-check{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
 /* KBD help */
 .kbd-grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:center}
@@ -431,16 +466,20 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
     <div class="stat" id="statTimeSpan" style="display:none">Span:<span class="stat-val" id="statSpan">-</span></div>
   </div>
   <div class="topbar-actions">
-    <button class="btn" onclick="document.getElementById('fileInput').click()" title="Load file(s)">⊕ Load</button>
-    <button class="btn" onclick="showPasteModal()" title="Paste log text">⎘ Paste</button>
-    <button class="btn" onclick="clearLogs()" title="Clear all logs">✕ Clear</button>
-    <div class="vdiv"></div>
-    <button class="btn icon" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark theme">🌙</button>
-    <button class="btn icon active" id="timelineToggleBtn" onclick="toggleTimeline()" title="Toggle timeline" aria-pressed="true" aria-controls="timelineWrap">📊</button>
-    <button class="btn active" id="wildcardToggleBtn" onclick="toggleWildcard()" aria-expanded="true" aria-controls="wildcardPanel" title="Hide wildcard / KQL query panel">* Wildcard</button>
-    <button class="btn icon" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">⌨</button>
-    <div class="vdiv"></div>
-    <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" role="switch" aria-checked="false" aria-controls="aiPanelWrap" title="Turn on Local AI Analyst (Ollama)" style="color:var(--purple);border-color:rgba(176,109,255,.4)">🤖 AI</button>
+    <div class="topbar-action-group" role="group" aria-label="Log files">
+      <button class="btn" onclick="document.getElementById('fileInput').click()" title="Load file(s)">Load</button>
+      <button class="btn" onclick="showPasteModal()" title="Paste log text">Paste</button>
+      <button class="btn" onclick="clearLogs()" title="Clear all logs">Clear</button>
+    </div>
+    <div class="topbar-action-group" role="group" aria-label="Panels">
+      <button class="btn active" id="timelineToggleBtn" onclick="toggleTimeline()" title="Toggle timeline" aria-pressed="true" aria-controls="timelineWrap">Timeline</button>
+      <button class="btn active" id="wildcardToggleBtn" onclick="toggleWildcard()" aria-expanded="true" aria-controls="wildcardPanel" title="Hide wildcard / KQL query panel">Wildcard</button>
+      <button class="btn" id="aiToggleBtn" onclick="toggleAIPanel()" role="switch" aria-checked="false" aria-controls="aiPanelWrap" title="Turn on Local AI Analyst (Ollama)">AI Analyst</button>
+    </div>
+    <div class="topbar-action-group" role="group" aria-label="Appearance and help">
+      <button class="btn" id="themeBtn" onclick="toggleTheme()" title="Switch to light theme" aria-label="Light theme" aria-pressed="false">Theme</button>
+      <button class="btn" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">Help</button>
+    </div>
   </div>
 </div>
 </div>
@@ -488,7 +527,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
       <button class="btn" id="dedupBtn" onclick="toggleDedup()" title="Deduplicate identical messages" style="font-size:10px">Dedup</button>
       <button class="btn" id="wrapBtn" onclick="toggleWrap()" title="Wrap up to 6 lines per row; view full text in Log Detail" aria-pressed="false" style="font-size:10px">Wrap</button>
       <button class="btn" id="markedBtn" onclick="toggleMarked()" title="Show bookmarked rows only" style="font-size:10px">★ Marked</button>
-      <button class="btn" onclick="showColumnPicker()" style="font-size:10px">⊞ Columns</button>
+      <button class="btn" id="columnPickerBtn" onclick="showColumnPicker()" style="font-size:10px">⊞ Columns</button>
       <button class="btn" onclick="exportJSON()" style="font-size:10px">⬇ JSON</button>
       <button class="btn" onclick="exportCSV()" style="font-size:10px">⬇ CSV</button>
       <button class="btn" id="detailToggleBtn" onclick="toggleDetail()" aria-expanded="false" aria-controls="detailPanel" title="Show Log Detail" style="font-size:10px">◧ Detail</button>
@@ -650,11 +689,26 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
 </div>
 
 <div class="modal-backdrop hidden" id="columnModal">
-  <div class="modal">
-    <div class="modal-header"><span class="modal-title">⊞ Column Picker</span><button class="btn" onclick="closeColumnPicker()">✕</button></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="columnPickerTitle">
+    <div class="modal-header"><span class="modal-title" id="columnPickerTitle">Column Picker</span><button class="btn" onclick="closeColumnPicker()">Close</button></div>
+    <div class="column-picker-toolbar">
+      <div class="btn-group" role="group" aria-label="Column picker view">
+        <button class="btn active" id="columnTreeViewBtn" onclick="setColumnPickerView('tree')" aria-pressed="true">Tree</button>
+        <button class="btn" id="columnListViewBtn" onclick="setColumnPickerView('list')" aria-pressed="false">List</button>
+      </div>
+      <input class="column-picker-search" id="columnPickerSearch" type="search" placeholder="Filter field paths…" aria-label="Filter field paths" oninput="renderColumnPicker()">
+    </div>
+    <div class="column-layout-controls" role="group" aria-label="Saved column layouts">
+      <select id="columnLayoutSelect" aria-label="Saved column layout" onchange="selectColumnLayout()"><option value="">Saved layouts…</option></select>
+      <input id="columnLayoutName" type="text" maxlength="80" placeholder="Layout name" aria-label="Layout name">
+      <button class="btn" id="columnLayoutSaveBtn" onclick="saveColumnLayout()" title="Save columns, widths, order and sorting in this browser">Save</button>
+      <button class="btn" id="columnLayoutLoadBtn" onclick="loadColumnLayout()" disabled>Load</button>
+    </div>
+    <div class="column-layout-status" id="columnLayoutStatus" role="status" aria-live="polite"></div>
+    <div class="column-picker-info" id="columnPickerInfo" aria-live="polite"></div>
     <div class="modal-body" id="columnModalBody"></div>
     <div class="modal-footer">
-      <button class="btn primary" onclick="applyColumns()">Apply</button>
+      <button class="btn primary" id="columnApplyBtn" onclick="applyColumns()">Apply</button>
       <button class="btn" onclick="resetColumns()">Reset</button>
       <button class="btn" onclick="closeColumnPicker()">Cancel</button>
     </div>
@@ -762,6 +816,12 @@ let visibleColumns = [];
 const MIN_COLUMN_WIDTH = 80;
 const columnWidths = new Map();
 let pendingColumns = [];
+const MAX_COLUMNS = 12;
+let columnPickerView = 'tree', columnPickerSnapshot = null, columnPickerTree = null;
+let columnPickerLayoutSnapshot = null;
+const expandedColumnNodes = new Set();
+const columnPickerNodes = new Map();
+let cancelColumnReorder = null, suppressColumnSortUntil = 0;
 let sideTab = 'time';
 let expandedFields = new Set();
 // Virtual scroll
@@ -780,6 +840,7 @@ const HISTORY_KEY = 'loglens_history';
 const SAVED_KEY = 'loglens_saved';
 const THEME_KEY = 'loglens_theme';
 const AI_OPEN_KEY = 'loglens_ai_open';
+const COLUMN_LAYOUTS_KEY = 'loglens_column_layouts_v1';
 
 const LEVEL_COLORS = {
   ERROR:'#ff4d6d', CRITICAL:'#ff4d6d', FATAL:'#ff4d6d',
@@ -827,13 +888,19 @@ function setWildcardPanelOpen(open) {
 
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
-  document.getElementById('themeBtn').textContent = isLight ? '☀' : '🌙';
+  syncThemeButton(isLight);
   localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
   drawTimeline();
 }
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
-  if (saved === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀'; }
+  if (saved === 'light') document.body.classList.add('light');
+  syncThemeButton(document.body.classList.contains('light'));
+}
+function syncThemeButton(isLight) {
+  const button = document.getElementById('themeBtn');
+  button.title = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+  button.setAttribute('aria-pressed', String(isLight));
 }
 
 // ── PERSISTENCE ────────────────────────────────────────────────────────────
@@ -1102,8 +1169,8 @@ function normalizeLog(obj) {
     };
   }
   // ECS/Elasticsearch alias
-  if (obj['log.level'] && !obj.level) obj.level = obj['log.level'];
-  if (obj['log.logger'] && !obj.service) obj.service = obj['log.logger'];
+  if ((obj['log.level'] || obj.log?.level) && !obj.level) obj.level = obj['log.level'] || obj.log.level;
+  if ((obj['log.logger'] || obj.log?.logger) && !obj.service) obj.service = obj['log.logger'] || obj.log.logger;
   return obj;
 }
 
@@ -1218,6 +1285,7 @@ function detectLevel(line) {
 
 // ── INGEST ─────────────────────────────────────────────────────────────────
 function ingestLogs(newLogs, filename, size) {
+  if (columnPickerSnapshot !== null) closeColumnPicker();
   const fileId = files.length;
   const fmtSize = size ? (size > 1048576 ? (size/1048576).toFixed(1)+'MB' : (size/1024).toFixed(0)+'KB') : '';
   files.push({ id:fileId, name:filename||'unknown', size:fmtSize, count:newLogs.length });
@@ -1231,6 +1299,7 @@ function ingestLogs(newLogs, filename, size) {
 }
 
 function removeFile(fileId) {
+  if (columnPickerSnapshot !== null) closeColumnPicker();
   allLogs = allLogs.filter(l => l._fileId !== fileId);
   files = files.filter(f => f.id !== fileId);
   // Remap marks
@@ -1245,6 +1314,7 @@ function removeFile(fileId) {
 }
 
 function clearLogs() {
+  if (columnPickerSnapshot !== null) closeColumnPicker();
   closeDetail();
   document.getElementById('detailScroll').innerHTML = '';
   allLogs=[]; filteredLogs=[]; fields={}; files=[]; markedRows.clear();
@@ -1258,18 +1328,21 @@ function clearLogs() {
 }
 
 function rebuildFields() {
-  fields = {};
+  fields = Object.create(null);
   allLogs.forEach(log => {
-    Object.keys(log).forEach(k => {
-      if (k === '_fileId') return;
-      if (!fields[k]) fields[k] = { count:0, type:'string', values:[], valueCounts:{} };
-      fields[k].count++;
-      const v = log[k];
-      if (typeof v === 'number') fields[k].type = 'number';
-      else if (typeof v === 'boolean') fields[k].type = 'bool';
-      const sv = String(v);
-      if (!fields[k].valueCounts[sv]) fields[k].valueCounts[sv] = 0;
-      fields[k].valueCounts[sv]++;
+    visitLogFields(log, (path, value, hasChildren) => {
+      const key = fieldId(path);
+      const type = value === null ? 'null' : Array.isArray(value) ? 'array'
+        : typeof value === 'boolean' ? 'bool' : typeof value;
+      if (!fields[key]) fields[key] = { path, count:0, type, hasChildren:false, values:[], valueCounts:Object.create(null) };
+      const f = fields[key];
+      f.count++;
+      if (f.type !== type) f.type = 'mixed';
+      f.hasChildren ||= hasChildren;
+      // Structured parent values remain selectable as JSON, but need no expensive distribution.
+      if (value !== null && typeof value === 'object') return;
+      const text = fieldText(value);
+      f.valueCounts[text] = (f.valueCounts[text] || 0) + 1;
     });
   });
   // Build top values
@@ -1280,12 +1353,49 @@ function rebuildFields() {
 }
 
 function autoPickColumns() {
+  visibleColumns = visibleColumns.filter(c => Object.hasOwn(fields, c));
   if (visibleColumns.length) return; // user already picked
-  const all = Object.keys(fields);
-  const cols = [];
-  COL_PRIORITY.forEach(c => { if (all.includes(c)) cols.push(c); });
-  all.forEach(f => { if (!cols.includes(f) && !f.startsWith('_') && cols.length < 12) cols.push(f); });
-  visibleColumns = cols.slice(0, 9);
+  visibleColumns = defaultColumns();
+}
+
+function fieldId(path) { return path.map(p => String(p).replace(/~/g,'~0').replace(/\//g,'~1')).join('/'); }
+function fieldPath(field) {
+  return fields[field]?.path || field.split('/').map(p => p.replace(/~1/g,'/').replace(/~0/g,'~'));
+}
+function fieldLabel(field) { return fieldPath(field).join('/'); }
+function fieldPathHTML(field) {
+  return fieldPath(field).map(escHTML).join('<span class="field-separator">/</span>');
+}
+function fieldText(value) {
+  if (value === undefined) return '';
+  if (value !== null && typeof value === 'object') {
+    try { return JSON.stringify(value); } catch { return '[Unserializable value]'; }
+  }
+  return String(value);
+}
+function visitLogFields(log, visit) {
+  const stack = Object.entries(log).filter(([key]) => key !== '_fileId').reverse()
+    .map(([key,value]) => ({ path:[key], value }));
+  const seen = new WeakSet();
+  while (stack.length) {
+    const { path, value } = stack.pop();
+    const canExpand = value !== null && typeof value === 'object'
+      && (!Array.isArray(value) || value.some(item => item !== null && typeof item === 'object'))
+      && path.length < 64 && !seen.has(value);
+    const entries = canExpand ? Object.entries(value) : [];
+    visit(path, value, entries.length > 0);
+    if (!canExpand) continue;
+    seen.add(value);
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const [key, child] = entries[i];
+      stack.push({ path:[...path,key], value:child });
+    }
+  }
+}
+function availableColumns() { return Object.keys(fields).filter(c => !fields[c].path[0].startsWith('_')); }
+function defaultColumns() {
+  const all = availableColumns().filter(c => !fields[c].hasChildren);
+  return [...COL_PRIORITY.filter(c => all.includes(c)), ...all.filter(c => !COL_PRIORITY.includes(c))].slice(0,9);
 }
 
 function rebuildTimeRange() {
@@ -1331,53 +1441,59 @@ function evalKQL(expr, log) {
   expr = expr.trim();
   if (expr.startsWith('(') && matchingParen(expr) === expr.length - 1)
     return evalKQL(expr.slice(1,-1), log);
-  if (/^NOT\s+/i.test(expr)) return !evalKQL(expr.replace(/^NOT\s+/i,''), log);
-  const andParts = splitTopLevel(expr, /\bAND\b/i);
-  if (andParts.length > 1) return andParts.every(p => evalKQL(p, log));
   const orParts = splitTopLevel(expr, /\bOR\b/i);
   if (orParts.length > 1) return orParts.some(p => evalKQL(p, log));
+  const andParts = splitTopLevel(expr, /\bAND\b/i);
+  if (andParts.length > 1) return andParts.every(p => evalKQL(p, log));
+  if (/^NOT\s+/i.test(expr)) return !evalKQL(expr.replace(/^NOT\s+/i,''), log);
 
   // Range: field:>=N
-  const rangeM = /^([\w.@]+)\s*:?(>=|<=|>|<)\s*(.+)$/.exec(expr);
+  const rangeM = /^(`[^`]+`|[^\s:()<>!=]+)\s*:?(>=|<=|>|<)\s*(.+)$/.exec(expr);
   if (rangeM) {
-    const [,field,,op,val] = rangeM;
-    const fv = getField(log, field);
+    const [,field,op,val] = rangeM;
+    const fv = getField(log, unquoteField(field));
     const n = parseFloat(fv), nv = parseFloat(val);
     if (isNaN(n)||isNaN(nv)) return false;
-    return op='>='?n>=nv:op==='<='?n<=nv:op==='>'?n>nv:n<nv;
+    return op==='>='?n>=nv:op==='<='?n<=nv:op==='>'?n>nv:n<nv;
   }
 
   // field:/regex/flags
-  const reM = /^([\w.@]+)\s*:\s*\/(.+)\/([gimsuy]*)$/.exec(expr);
+  const reM = /^(`[^`]+`|[^\s:()<>!=]+)\s*:\s*\/(.+)\/([gimsuy]*)$/.exec(expr);
   if (reM) {
     const [,field,pattern,flags] = reM;
     try {
       const re = new RegExp(pattern, flags);
-      const fv = String(getField(log, field) ?? '');
+      const fv = fieldText(getField(log, unquoteField(field)));
       return re.test(fv);
     } catch { return false; }
   }
 
   // field:value (with wildcard)
-  const eqM = /^([\w.@]+)\s*:\s*(.+)$/.exec(expr);
+  const eqM = /^(`[^`]+`|[^\s:()<>!=]+)\s*:\s*(.+)$/.exec(expr);
   if (eqM) {
     let [,field,val] = eqM;
-    val = val.trim().replace(/^"|"$/g,'');
-    const fv = String(getField(log, field) ?? '');
+    val = val.trim();
+    if (val.startsWith('"') && val.endsWith('"')) {
+      try { val = JSON.parse(val); } catch { val = val.slice(1,-1); }
+    }
+    const fv = fieldText(getField(log, unquoteField(field)));
     return globMatch(fv.toLowerCase(), val.toLowerCase());
   }
 
   // Free text / wildcard across all fields
   const term = expr.replace(/^['"]|['"]$/g,'').toLowerCase();
   return Object.entries(log).some(([k,v]) => k !== '_fileId' &&
-    (term.includes('*') ? globMatch(String(v).toLowerCase(), '*' + term + '*')
-      : String(v).toLowerCase().includes(term)));
+    (term.includes('*') ? globMatch(fieldText(v).toLowerCase(), '*' + term + '*')
+      : fieldText(v).toLowerCase().includes(term)));
 }
 
 function getField(log, field) {
-  if (field in log) return log[field];
-  return field.split('.').reduce((o,k) => o?.[k], log);
+  const read = path => path.reduce((o,k) => o !== null && typeof o === 'object' && Object.hasOwn(o,k) ? o[k] : undefined, log);
+  if (Object.hasOwn(fields, field)) return read(fields[field].path);
+  if (Object.hasOwn(log, field)) return log[field];
+  return read(field.includes('/') || field.includes('~') ? fieldPath(field) : field.split('.'));
 }
+function unquoteField(field) { return field.replace(/^`|`$/g,''); }
 
 function globMatch(str, pattern) {
   if (pattern === '*') return true;
@@ -1387,22 +1503,41 @@ function globMatch(str, pattern) {
 
 function splitTopLevel(expr, re) {
   const parts=[]; let depth=0, last=0;
-  const matches=[...expr.matchAll(new RegExp(re.source,'gi'))];
-  for (const m of matches) {
-    const before = expr.slice(0,m.index);
-    depth = (before.match(/\(/g)||[]).length - (before.match(/\)/g)||[]).length;
-    if (depth===0) { parts.push(expr.slice(last,m.index)); last=m.index+m[0].length; }
-  }
+  const op = new RegExp('^(?:' + re.source + ')','i');
+  scanKQLSyntax(expr, (i,c) => {
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    if (depth || i < last || (i && !/[\s)]/.test(expr[i-1]))) return;
+    const match = op.exec(expr.slice(i));
+    if (match && (i+match[0].length === expr.length || /[\s(]/.test(expr[i+match[0].length]))) {
+      parts.push(expr.slice(last,i)); last=i+match[0].length;
+    }
+  });
   parts.push(expr.slice(last));
   return parts.length > 1 ? parts : [expr];
 }
 
 function matchingParen(s) {
-  let d=0;
-  for (let i=0;i<s.length;i++) {
-    if (s[i]==='(') d++; else if (s[i]===')') { d--; if (d===0) return i; }
+  let depth=0, end=-1;
+  scanKQLSyntax(s, (i,c) => {
+    if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) { end=i; return false; }
+  });
+  return end;
+}
+
+function scanKQLSyntax(expr, visit) {
+  let quote = null;
+  for (let i=0; i<expr.length; i++) {
+    const c=expr[i];
+    if (quote) {
+      if (c === '\\') { i++; continue; }
+      if (c === quote) quote=null;
+      continue;
+    }
+    if ('"\'`'.includes(c) || (c === '/' && expr.slice(0,i).trimEnd().endsWith(':'))) { quote=c; continue; }
+    if (visit(i,c) === false) break;
   }
-  return -1;
 }
 
 // ── QUERY RUNNER ───────────────────────────────────────────────────────────
@@ -1453,7 +1588,9 @@ function runQuery() {
   // Sort
   if (sortField) {
     filteredLogs.sort((a,b) => {
-      const av=a[sortField]??'', bv=b[sortField]??'';
+      let av=getField(a,sortField)??'', bv=getField(b,sortField)??'';
+      if (typeof av === 'object') av = fieldText(av);
+      if (typeof bv === 'object') bv = fieldText(bv);
       return av<bv?-sortDir:av>bv?sortDir:0;
     });
   }
@@ -1515,11 +1652,7 @@ function renderVisibleRows() {
 // ── RENDER TABLE ───────────────────────────────────────────────────────────
 function getDefaultCols() {
   if (visibleColumns.length) return visibleColumns;
-  const all = Object.keys(fields).filter(k => !k.startsWith('_'));
-  const cols = [];
-  COL_PRIORITY.forEach(c => { if (all.includes(c)) cols.push(c); });
-  all.forEach(f => { if (!cols.includes(f) && cols.length < 9) cols.push(f); });
-  return cols;
+  return defaultColumns();
 }
 
 function renderTable() {
@@ -1531,13 +1664,15 @@ function renderTable() {
   applyColumnWidths(cols);
 
   head.innerHTML = '<tr><th style="width:24px;padding:4px 6px">#</th>' +
-    cols.map(c => `<th class="${sortField===c?'sorted':''}" title="${escHTML(c).replace(/"/g,'&quot;')}">
-      <span class="log-column-label">${escHTML(c)} <span style="opacity:.4;margin-left:2px">${sortField===c?(sortDir>0?'↑':'↓'):'↕'}</span></span>
+    cols.map(c => `<th data-reorder-field="${escAttr(c)}" class="${sortField===c?'sorted':''}" title="${escAttr(fieldLabel(c))}">
+      <div class="column-heading"><button class="column-drag" aria-label="Reorder ${escAttr(fieldLabel(c))} column" title="Drag to reorder; arrow keys to move">⠿</button>
+      <span class="log-column-label">${fieldPathHTML(c)} <span style="opacity:.4;margin-left:2px">${sortField===c?(sortDir>0?'↑':'↓'):'↕'}</span></span></div>
       <span class="column-resize" role="separator" aria-orientation="vertical" tabindex="0"
         aria-label="Resize ${escHTML(c).replace(/"/g,'&quot;')} column" aria-valuemin="${MIN_COLUMN_WIDTH}" aria-valuenow="${getColumnWidth(c)}"
         title="Drag to resize; double-click to reset; arrow keys to adjust"></span>
     </th>`).join('') + '</tr>';
   initColumnResize(cols);
+  initHeaderReorder(cols);
 
   if (!filteredLogs.length) {
     document.getElementById('logBody').innerHTML = '';
@@ -1556,6 +1691,7 @@ function renderTable() {
 }
 
 function defaultColumnWidth(field) {
+  field = fieldPath(field).at(-1);
   return /^(timestamp|@timestamp|time|ts|datetime)$/.test(field) ? 200
     : /^(level|Level|severity)$/.test(field) ? 100
     : /^(message|msg|_raw)$/.test(field) ? 420 : 180;
@@ -1580,7 +1716,7 @@ function initColumnResize(cols) {
   cols.forEach((field,i) => {
     const th = headers[i+1];
     const handle = th.querySelector('.column-resize');
-    th.addEventListener('click', () => sortBy(field));
+    th.addEventListener('click', () => { if (Date.now() >= suppressColumnSortUntil) sortBy(field); });
     handle.addEventListener('click', e => e.stopPropagation());
     const resize = (width, scrollLeft) => {
       columnWidths.set(field, Math.max(MIN_COLUMN_WIDTH, Math.round(width)));
@@ -1629,6 +1765,118 @@ function initColumnResize(cols) {
   });
 }
 
+function movedColumnOrder(order, field, target, after) {
+  if (field === target || !order.includes(field) || !order.includes(target)) return [...order];
+  const next = order.filter(c => c !== field);
+  next.splice(next.indexOf(target) + (after ? 1 : 0), 0, field);
+  return next;
+}
+
+function initHeaderReorder(cols) {
+  const root = document.getElementById('logHead');
+  root.querySelectorAll('th[data-reorder-field]').forEach(th => {
+    bindColumnReorder(th.querySelector('.column-drag'), th.dataset.reorderField, {
+      axis:'x', root, container:document.getElementById('logScroll'), order:() => cols,
+      commit:next => { visibleColumns = next; renderTable(); }
+    });
+  });
+}
+
+function bindColumnReorder(handle, field, { axis, root, container, order, commit }) {
+  const rows = () => [...root.querySelectorAll('[data-reorder-field]')];
+  const focusHandle = () => rows().find(row => row.dataset.reorderField === field)
+    ?.querySelector('.column-drag')?.focus({preventScroll:true});
+  handle.addEventListener('click', e => e.stopPropagation());
+  handle.addEventListener('keydown', e => {
+    const backward = axis === 'x' ? 'ArrowLeft' : 'ArrowUp';
+    const forward = axis === 'x' ? 'ArrowRight' : 'ArrowDown';
+    if (![backward,forward].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    const current = order(), index = current.indexOf(field), next = index + (e.key === forward ? 1 : -1);
+    if (next < 0 || next >= current.length) return;
+    commit(movedColumnOrder(current, field, current[next], e.key === forward));
+    focusHandle();
+  });
+  handle.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || handle.disabled) return;
+    e.preventDefault(); e.stopPropagation();
+    if (cancelColumnReorder) cancelColumnReorder();
+    const start = { x:e.clientX, y:e.clientY };
+    let point = start, dragging = false, marker = null, drop = null, frame = null;
+    const clearMarker = () => {
+      if (marker) marker.classList.remove('drop-before','drop-after');
+      marker = null; drop = null;
+    };
+    const updateTarget = () => {
+      const bounds = container.getBoundingClientRect();
+      const position = axis === 'x' ? Math.max(bounds.left, Math.min(bounds.right, point.x))
+        : Math.max(bounds.top, Math.min(bounds.bottom, point.y));
+      let closest = null, distance = Infinity;
+      for (const row of rows()) {
+        if (row.dataset.reorderField === field) continue;
+        const rect = row.getBoundingClientRect();
+        const middle = axis === 'x' ? (rect.left+rect.right)/2 : (rect.top+rect.bottom)/2;
+        if (Math.abs(middle-position) < distance) { closest={row,middle}; distance=Math.abs(middle-position); }
+      }
+      clearMarker();
+      if (!closest) return;
+      marker = closest.row;
+      drop = { field:marker.dataset.reorderField, after:position >= closest.middle };
+      marker.classList.add(drop.after ? 'drop-after' : 'drop-before');
+    };
+    const tick = () => {
+      frame = null;
+      if (!dragging) return;
+      const rect = container.getBoundingClientRect();
+      const p = axis === 'x' ? point.x : point.y;
+      const low = axis === 'x' ? rect.left : rect.top, high = axis === 'x' ? rect.right : rect.bottom;
+      const step = p < low+28 ? -12 : p > high-28 ? 12 : 0;
+      const key = axis === 'x' ? 'scrollLeft' : 'scrollTop';
+      const before = container[key];
+      if (step) container[key] += step;
+      updateTarget();
+      if (step && before !== container[key]) frame = requestAnimationFrame(tick);
+    };
+    const move = ev => {
+      if (ev.pointerId !== e.pointerId) return;
+      point = { x:ev.clientX, y:ev.clientY };
+      if (!dragging && Math.hypot(point.x-start.x,point.y-start.y) < 4) return;
+      dragging = true;
+      document.body.classList.add('reordering-column');
+      if (frame === null) frame = requestAnimationFrame(tick);
+    };
+    const finish = (save, ev) => {
+      if (ev && ev.pointerId !== undefined && ev.pointerId !== e.pointerId) return;
+      if (ev) { ev.preventDefault?.(); ev.stopPropagation?.(); }
+      if (frame !== null) cancelAnimationFrame(frame);
+      if (dragging && save) updateTarget();
+      const next = dragging && save && drop ? movedColumnOrder(order(),field,drop.field,drop.after) : null;
+      clearMarker();
+      dragging = false;
+      handle.removeEventListener('pointermove',move);
+      handle.removeEventListener('pointerup',up);
+      handle.removeEventListener('pointercancel',cancel);
+      handle.removeEventListener('lostpointercapture',cancel);
+      document.removeEventListener('keydown',escape);
+      window.removeEventListener('blur',cancel);
+      cancelColumnReorder = null;
+      document.body.classList.remove('reordering-column');
+      if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+      if (next) { suppressColumnSortUntil = Date.now()+250; commit(next); focusHandle(); }
+    };
+    const up = ev => finish(true,ev), cancel = ev => finish(false,ev);
+    const escape = ev => { if (ev.key === 'Escape') finish(false); };
+    cancelColumnReorder = () => finish(false);
+    handle.setPointerCapture(e.pointerId);
+    handle.addEventListener('pointermove',move);
+    handle.addEventListener('pointerup',up);
+    handle.addEventListener('pointercancel',cancel);
+    handle.addEventListener('lostpointercapture',cancel);
+    document.addEventListener('keydown',escape);
+    window.addEventListener('blur',cancel);
+  });
+}
+
 function buildRows(cols, from, to) {
   const hl = kqlQuery && kqlQuery !== '*' ? extractHighlightTerms(kqlQuery) : [];
   return filteredLogs.slice(from, to).map((log, i) => {
@@ -1644,13 +1892,14 @@ function buildRows(cols, from, to) {
 }
 
 function renderCell(log, col, hl) {
-  const v = log[col];
+  const v = getField(log, col);
   if (v === undefined || v === null) return '<td style="color:var(--text-dim);font-size:10px"><div class="log-cell-content">—</div></td>';
-  if (col==='level'||col==='Level'||col==='severity') {
+  const name = fieldPath(col).at(-1);
+  if ((name==='level'||name==='Level'||name==='severity') && typeof v !== 'object') {
     const lv = normalizeLevel(String(v));
     return `<td><div class="log-cell-content"><span class="badge badge-${escHTML(lv)}">${escHTML(lv||v)}</span></div></td>`;
   }
-  let sv = escHTML(String(v));
+  let sv = escHTML(fieldText(v));
   let cls = '';
   if (col==='timestamp'||col==='@timestamp'||col==='time'||col==='ts'||col==='datetime') cls='ts-val';
   else if (/^\d+\.\d+\.\d+\.\d+$/.test(sv)) cls='ip-val';
@@ -1660,7 +1909,7 @@ function renderCell(log, col, hl) {
     if (!term) continue;
     try { sv = sv.replace(new RegExp('('+escRe(term)+')','gi'), '<span class="highlight">$1</span>'); } catch {}
   }
-  const title = escHTML(v).replace(/"/g,'&quot;');
+  const title = escAttr(fieldText(v));
   return `<td class="${cls}" title="${title}"><div class="log-cell-content">${sv}</div></td>`;
 }
 
@@ -1726,23 +1975,29 @@ function renderDetail(log) {
   if (!log) return;
   const scroll = document.getElementById('detailScroll');
   if (detailTab === 'fields') {
-    scroll.innerHTML = Object.entries(log).filter(([k])=>k!=='_fileId').map(([k,v]) => {
-      const vs = renderDetailValue(v);
-      const safe_k = k.replace(/'/g,"\\'");
-      const safe_v = String(v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div class="detail-field">
-        <div class="detail-key" title="Filter by ${k}" onclick="appendKQLFromDetail('${safe_k}','${safe_v}')">${k}</div>
-        <div class="detail-val"><span class="detail-val-text">${vs}</span>
-          <span class="copy-btn" onclick="copyVal('${safe_v}')" title="Copy">⎘</span>
-        </div>
-      </div>`;
-    }).join('');
+    const rows=[];
+    visitLogFields(log,(path,value,hasChildren) => {
+      if (hasChildren) return;
+      const field=fieldId(path);
+      rows.push(`<div class="detail-field">
+        <div class="detail-key" title="Filter by ${escAttr(fieldLabel(field))}" data-detail-field="${escAttr(field)}">${fieldPathHTML(field)}</div>
+        <div class="detail-val"><span class="detail-val-text">${renderDetailValue(value)}</span>
+          <button class="copy-btn" data-copy-field="${escAttr(field)}" title="Copy value" aria-label="Copy ${escAttr(fieldLabel(field))}">⎘</button>
+        </div></div>`);
+    });
+    scroll.innerHTML=rows.join('');
   } else if (detailTab === 'raw') {
     const raw = log._raw || JSON.stringify(log, (k,v)=>k==='_fileId'?undefined:v, 2);
     scroll.innerHTML = `<pre class="raw-view">${escHTML(raw)}</pre>`;
   } else { // tree
     scroll.innerHTML = buildJSONTree(log);
   }
+  scroll.querySelectorAll('[data-detail-field]').forEach(el => {
+    el.onclick=() => appendKQLFromDetail(el.dataset.detailField,fieldText(getField(log,el.dataset.detailField)));
+  });
+  scroll.querySelectorAll('[data-copy-field]').forEach(el => {
+    el.onclick=() => copyVal(fieldText(getField(log,el.dataset.copyField)));
+  });
 }
 
 function renderDetailValue(v) {
@@ -1757,22 +2012,17 @@ function renderDetailValue(v) {
 }
 
 function escHTML(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return escHTML(s).replace(/"/g,'&quot;'); }
 
-function buildJSONTree(obj, depth) {
-  depth = depth || 0;
+function buildJSONTree(obj, path=[]) {
   if (typeof obj !== 'object' || obj === null) return renderJSONLeaf(obj);
-  const entries = Object.entries(obj).filter(([k])=>k!=='_fileId'&&k!=='_raw');
-  const id = 'jt' + Math.random().toString(36).slice(2);
-  const preview = entries.length > 3 ? `{${entries.slice(0,2).map(([k])=>k).join(', ')}, …}` : '';
-  if (depth > 0) {
-    return `<span class="jtree-expand" onclick="this.nextElementSibling.classList.toggle('collapsed');this.textContent=this.textContent==='▾'?'▸':'▾'">▾</span>
-      <div class="jtree-children">${entries.map(([k,v])=>
-        `<div class="jtree-node"><span class="jtree-key" onclick="appendKQLFromDetail('${escHTML(k)}','${escHTML(String(v))}')">${escHTML(k)}</span>: ${buildJSONTree(v,depth+1)}</div>`
-      ).join('')}</div>`;
-  }
-  return `<div>${entries.map(([k,v])=>
-    `<div class="jtree-node" style="margin:3px 0"><span class="jtree-key" onclick="appendKQLFromDetail('${escHTML(k)}','${escHTML(String(v))}')">${escHTML(k)}</span>: ${buildJSONTree(v,depth+1)}</div>`
-  ).join('')}</div>`;
+  if (path.length >= 64) return escHTML(fieldText(obj));
+  const entries=Object.entries(obj).filter(([key]) => path.length || !['_fileId','_raw'].includes(key));
+  const content=entries.map(([key,value]) => {
+    const childPath=[...path,key], field=fieldId(childPath);
+    return `<div class="jtree-node"><span class="jtree-key" title="${escAttr(fieldLabel(field))}" data-detail-field="${escAttr(field)}">${escHTML(key)}</span>: ${buildJSONTree(value,childPath)}</div>`;
+  }).join('');
+  return path.length ? `<details open><summary>${Array.isArray(obj)?'array':'object'} · ${entries.length}</summary><div class="jtree-children">${content}</div></details>` : '<div>'+content+'</div>';
 }
 
 function renderJSONLeaf(v) {
@@ -1818,7 +2068,8 @@ function navigateDetail(dir) {
 function appendKQLFromDetail(field, value) {
   const inp = document.getElementById('kqlInput');
   const curr = inp.value.trim();
-  const addition = `${field}:"${value}"`;
+  const queryField = /[\s:()<>!=]/.test(field) ? '`' + field + '`' : field;
+  const addition = `${queryField}:${JSON.stringify(String(value))}`;
   inp.value = curr && curr !== '*' ? curr + ' AND ' + addition : addition;
   runQuery();
 }
@@ -1828,7 +2079,7 @@ function appendKQL(mode) {
   const log = filteredLogs[selectedIdx];
   // Use first non-meta field as filter
   const key = Object.keys(log).find(k => k !== '_fileId' && k !== '_raw');
-  if (key) appendKQLFromDetail(key, String(log[key]));
+  if (key) appendKQLFromDetail(fieldId([key]), fieldText(log[key]));
 }
 
 function copyVal(v) { navigator.clipboard.writeText(v).then(()=>toast('Copied!')); }
@@ -1844,8 +2095,8 @@ function copyDetailCSV() {
   if (selectedIdx === null) return;
   const log = filteredLogs[selectedIdx];
   const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
-  const line = cols.map(c => { const v = String(log[c]??''); return v.includes(',') ? `"${v.replace(/"/g,'""')}"` : v; }).join(',');
-  navigator.clipboard.writeText(cols.join(',') + '\n' + line).then(()=>toast('Copied CSV row'));
+  const line = cols.map(c => csvEscape(fieldText(getField(log,c)))).join(',');
+  navigator.clipboard.writeText(cols.map(csvEscape).join(',') + '\n' + line).then(()=>toast('Copied CSV row'));
 }
 
 function markRow() {
@@ -1866,10 +2117,25 @@ function switchSideTab(tab) {
 
 function renderSidebar() {
   const body = document.getElementById('sidebarBody');
+  const search=document.getElementById('fieldSearchInline');
+  const restoreFocus=search && document.activeElement === search;
+  const selection=restoreFocus ? [search.selectionStart,search.selectionEnd] : null;
   if (sideTab === 'time') body.innerHTML = renderTimePanel();
   else if (sideTab === 'level') body.innerHTML = renderLevelPanel();
   else if (sideTab === 'files') body.innerHTML = renderFilesPanel();
   else body.innerHTML = renderFieldsPanel();
+  if (sideTab === 'fields') {
+    body.querySelectorAll('[data-field-toggle]').forEach(el => {
+      el.onclick=() => toggleFieldExpand(el.dataset.fieldToggle);
+    });
+    body.querySelectorAll('[data-filter-field]').forEach(el => {
+      el.onclick=e => { e.stopPropagation(); appendKQLFromDetail(el.dataset.filterField,el.dataset.filterValue); };
+    });
+    if (restoreFocus) {
+      const input=document.getElementById('fieldSearchInline');
+      input.focus(); input.setSelectionRange(...selection);
+    }
+  }
 }
 
 function renderTimePanel() {
@@ -1934,29 +2200,29 @@ function renderFilesPanel() {
 function renderFieldsPanel() {
   const search = (document.getElementById('fieldSearchInline')?.value||'').toLowerCase();
   const all = Object.entries(fields)
-    .filter(([k])=>!k.startsWith('_'))
-    .filter(([k])=>!search||k.toLowerCase().includes(search))
+    .filter(([k])=>!fields[k].path[0].startsWith('_'))
+    .filter(([k])=>!search||fieldLabel(k).toLowerCase().includes(search))
     .sort((a,b)=>b[1].count-a[1].count);
   return `<div style="padding:6px 8px">
-    <input class="field-search" id="fieldSearchInline" placeholder="Filter fields…" value="${search}" oninput="renderSidebar()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
+    <input class="field-search" id="fieldSearchInline" placeholder="Filter fields…" value="${escAttr(search)}" oninput="renderSidebar()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'">
     ${all.map(([k,f])=>`
-      <div class="field-item ${expandedFields.has(k)?'expanded':''}" onclick="toggleFieldExpand('${k}')">
+      <div class="field-item ${expandedFields.has(k)?'expanded':''}" data-field-toggle="${escAttr(k)}">
         <div class="field-row">
-          <span class="field-name" title="${k}">${k}</span>
+          <span class="field-name" title="${escAttr(fieldLabel(k))}">${fieldPathHTML(k)}</span>
           <span class="field-type">${f.type}</span>
           <span class="field-count">${f.count.toLocaleString()}</span>
         </div>
-        ${expandedFields.has(k) ? renderFieldDist(f) : ''}
+        ${expandedFields.has(k) ? renderFieldDist(f,k) : ''}
       </div>`).join('')}
   </div>`;
 }
 
-function renderFieldDist(f) {
+function renderFieldDist(f,field) {
   if (!f.values.length) return '';
   const max = f.values[0].c;
   return `<div class="field-dist">${f.values.slice(0,8).map(({v,c})=>`
     <div class="field-bar-row">
-      <span class="field-bar-label" title="${escHTML(v)}" onclick="appendKQLFromDetail('FIELD','${escHTML(v)}')">${escHTML(String(v).slice(0,12))}</span>
+      <span class="field-bar-label" title="${escAttr(v)}" data-filter-field="${escAttr(field)}" data-filter-value="${escAttr(v)}">${escHTML(String(v).slice(0,12))}</span>
       <div class="field-bar-track"><div class="field-bar-fill" style="width:${Math.round(c/max*100)}%"></div></div>
       <span class="field-bar-n">${c}</span>
     </div>`).join('')}</div>`;
@@ -2232,31 +2498,261 @@ function initTimelineResize() {
 
 // ── COLUMN PICKER ───────────────────────────────────────────────────────────
 function showColumnPicker() {
-  const all = Object.keys(fields).filter(k=>!k.startsWith('_')).sort();
-  pendingColumns = [...visibleColumns];
-  const grid = document.getElementById('columnModalBody');
-  grid.innerHTML = `<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Select columns to display (max 12). Checked = visible.</div>
-    <div class="col-grid">${all.map(c=>`
-      <label class="col-item">
-        <input type="checkbox" class="col-check" value="${c}" ${visibleColumns.includes(c)?'checked':''} onchange="togglePendingCol('${c}',this.checked)">
-        <span style="font-size:11px">${c}</span>
-      </label>`).join('')}</div>`;
+  if (columnPickerSnapshot !== null) return;
+  columnPickerSnapshot = [...getDefaultCols()];
+  columnPickerLayoutSnapshot = { widths:new Map(columnWidths), sortField, sortDir, view:columnPickerView };
+  pendingColumns = [...columnPickerSnapshot];
+  columnPickerTree = buildColumnPickerTree();
+  expandedColumnNodes.clear();
+  for (const node of columnPickerTree.children.values()) if (node.children.size) expandedColumnNodes.add(node.id);
+  pendingColumns.forEach(field => {
+    const path=fieldPath(field);
+    for (let i=1; i<path.length; i++) expandedColumnNodes.add(fieldId(path.slice(0,i)));
+  });
+  document.getElementById('columnPickerSearch').value = '';
+  document.getElementById('columnLayoutStatus').textContent = '';
+  renderColumnLayoutOptions(document.getElementById('columnLayoutSelect').value);
   document.getElementById('columnModal').classList.remove('hidden');
+  renderColumnPicker();
+  document.getElementById('columnPickerSearch').focus();
 }
 
-function togglePendingCol(c, on) {
-  if (on) { if (pendingColumns.length < 12) pendingColumns.push(c); else { toast('Max 12 columns',true); event.target.checked=false; } }
-  else pendingColumns = pendingColumns.filter(x=>x!==c);
+function columnLayoutStatus(text, error=false) {
+  const status=document.getElementById('columnLayoutStatus');
+  status.textContent=text;
+  status.style.color=error ? 'var(--red)' : 'var(--text-dim)';
 }
 
-function applyColumns() {
+function readColumnLayouts() {
+  try {
+    const raw=localStorage.getItem(COLUMN_LAYOUTS_KEY);
+    if (!raw) return [];
+    const data=JSON.parse(raw);
+    if (data.version !== 1 || !Array.isArray(data.layouts)) throw new Error('Invalid layouts');
+    return data.layouts.filter(layout => layout && typeof layout.name === 'string' && layout.name.trim()
+      && Array.isArray(layout.columns) && layout.columns.length > 0 && layout.columns.length <= MAX_COLUMNS
+      && layout.columns.every(c => typeof c === 'string') && new Set(layout.columns).size === layout.columns.length
+      && Array.isArray(layout.widths) && layout.widths.every(entry => Array.isArray(entry) && entry.length === 2
+        && typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] >= MIN_COLUMN_WIDTH)
+      && (layout.sortField === null || typeof layout.sortField === 'string')
+      && [1,-1].includes(layout.sortDir)).slice(0,30);
+  } catch {
+    columnLayoutStatus('Saved layouts are unavailable. Browser storage may be blocked or damaged.',true);
+    return null;
+  }
+}
+
+function renderColumnLayoutOptions(selectedName='') {
+  const layouts=readColumnLayouts();
+  const select=document.getElementById('columnLayoutSelect');
+  select.innerHTML='<option value="">Saved layouts…</option>' + (layouts || []).map(layout =>
+    `<option value="${escAttr(layout.name)}">${escHTML(layout.name)}</option>`).join('');
+  select.value=layouts?.some(layout => layout.name === selectedName) ? selectedName : '';
+  document.getElementById('columnLayoutLoadBtn').disabled=!select.value;
+}
+
+function selectColumnLayout() {
+  const name=document.getElementById('columnLayoutSelect').value;
+  if (name) document.getElementById('columnLayoutName').value=name;
+  document.getElementById('columnLayoutLoadBtn').disabled=!name;
+  columnLayoutStatus('');
+}
+
+function saveColumnLayout() {
+  const name=document.getElementById('columnLayoutName').value.trim().slice(0,80);
+  if (!name) { columnLayoutStatus('Enter a layout name before saving.',true); return; }
+  if (!pendingColumns.length) { columnLayoutStatus('Select at least one column before saving.',true); return; }
+  const layouts=readColumnLayouts();
+  if (!layouts) return;
+  const index=layouts.findIndex(layout => layout.name === name);
+  if (index < 0 && layouts.length >= 30) { columnLayoutStatus('Up to 30 layouts can be saved. Use an existing name to replace one.',true); return; }
+  const widths=new Map([...columnWidths].filter(([field]) => Object.hasOwn(fields,field)));
+  pendingColumns.forEach(field => widths.set(field,getColumnWidth(field)));
+  const layout={ name, columns:[...pendingColumns], widths:[...widths], sortField, sortDir,
+    view:columnPickerView, expanded:[...expandedColumnNodes] };
+  if (index < 0) layouts.push(layout); else layouts[index]=layout;
+  try { localStorage.setItem(COLUMN_LAYOUTS_KEY,JSON.stringify({version:1,layouts})); }
+  catch { columnLayoutStatus('Could not save layout. Browser storage may be blocked or full.',true); return; }
+  document.getElementById('columnLayoutName').value=name;
+  renderColumnLayoutOptions(name);
+  columnLayoutStatus(`Saved “${name}” in this browser. Saving again with the same name replaces it.`);
+}
+
+function loadColumnLayout() {
+  const name=document.getElementById('columnLayoutSelect').value;
+  const layouts=readColumnLayouts();
+  if (!layouts) return;
+  const layout=layouts.find(item => item.name === name);
+  if (!layout) { columnLayoutStatus('Select a saved layout to load.',true); return; }
+  const available=new Set(availableColumns());
+  const columns=layout.columns.filter(field => available.has(field));
+  if (!columns.length) { columnLayoutStatus('This layout has no fields available in the current logs.',true); return; }
+  if (cancelColumnReorder) cancelColumnReorder();
+  pendingColumns=columns;
+  columnWidths.clear();
+  layout.widths.forEach(([field,width]) => { if (Object.hasOwn(fields,field)) columnWidths.set(field,width); });
+  sortField=layout.sortField && Object.hasOwn(fields,layout.sortField) ? layout.sortField : null;
+  sortDir=layout.sortDir;
+  columnPickerView=layout.view === 'list' ? 'list' : 'tree';
+  expandedColumnNodes.clear();
+  if (Array.isArray(layout.expanded)) layout.expanded.forEach(id => { if (columnPickerNodes.has(id)) expandedColumnNodes.add(id); });
+  visibleColumns=[...pendingColumns];
+  runQuery();
+  document.getElementById('columnPickerSearch').value='';
+  renderColumnPicker();
+  const skipped=layout.columns.length-columns.length;
+  columnLayoutStatus(`Loaded “${name}”${skipped ? `; skipped ${skipped} unavailable field(s)` : ''}. Apply keeps it; Cancel restores the previous layout.`);
+}
+
+function buildColumnPickerTree() {
+  columnPickerNodes.clear();
+  const root = { children:new Map() };
+  availableColumns().forEach(field => {
+    let node=root;
+    const path=fieldPath(field);
+    path.forEach((part,index) => {
+      if (!node.children.has(part)) {
+        const id=fieldId(path.slice(0,index+1));
+        const child={ id, name:part, field:null, children:new Map(), targets:[] };
+        node.children.set(part,child);
+        columnPickerNodes.set(id,child);
+      }
+      node=node.children.get(part);
+    });
+    node.field=field;
+  });
+  const collect = node => {
+    node.targets=node.field ? [node.field] : [];
+    for (const child of node.children.values()) node.targets=node.targets.concat(collect(child));
+    return node.targets;
+  };
+  collect(root);
+  return root;
+}
+
+function setColumnPickerView(view) {
+  if (!['tree','list'].includes(view)) return;
+  if (cancelColumnReorder) cancelColumnReorder();
+  columnPickerView=view;
+  document.getElementById('columnModalBody').scrollTop=0;
+  renderColumnPicker();
+}
+
+function pickerListFields() {
+  return [...pendingColumns, ...availableColumns().filter(c => !pendingColumns.includes(c))
+    .sort((a,b) => fieldLabel(a).localeCompare(fieldLabel(b)))];
+}
+
+function renderColumnPicker() {
+  const body=document.getElementById('columnModalBody');
+  const scrollTop=body.scrollTop;
+  const search=document.getElementById('columnPickerSearch').value.toLowerCase().trim();
+  for (const view of ['tree','list']) {
+    const button=document.getElementById(view === 'tree' ? 'columnTreeViewBtn' : 'columnListViewBtn');
+    button.classList.toggle('active',columnPickerView === view);
+    button.setAttribute('aria-pressed',String(columnPickerView === view));
+  }
+  document.getElementById('columnPickerInfo').textContent = `${pendingColumns.length} / ${MAX_COLUMNS} visible · Live preview; Cancel restores changes. List order = left-to-right table order.`;
+  document.getElementById('columnApplyBtn').disabled = !pendingColumns.length;
+  const row = (field, name=fieldPathHTML(field)) => {
+    const selected=pendingColumns.includes(field);
+    return `<div class="column-picker-row ${selected?'selected':''}" ${selected?'data-reorder-field="'+escAttr(field)+'"':''}>
+      ${columnPickerView === 'list' ? `<button class="column-drag" ${selected?'':'disabled'} aria-label="Reorder ${escAttr(fieldLabel(field))}" title="Select a column, then drag or use arrow keys to reorder">⠿</button>` : '<span style="width:20px;flex-shrink:0"></span>'}
+      <input type="checkbox" class="col-check" data-column-field="${escAttr(field)}" aria-label="Show ${escAttr(fieldLabel(field))}" ${selected?'checked':''}>
+      <span class="column-picker-name" data-picker-select="${escAttr(field)}" title="${escAttr(fieldLabel(field))}">${name}</span>
+      <span class="column-picker-type">${escHTML(fields[field].type)}</span></div>`;
+  };
+  if (columnPickerView === 'list') {
+    body.innerHTML = pickerListFields().filter(field => fieldLabel(field).toLowerCase().includes(search)).map(field => row(field)).join('');
+  } else {
+    const matches=new Map();
+    const match = node => {
+      const childMatches=[...node.children.values()].map(match).some(Boolean);
+      const ownMatch=node.field && fieldLabel(node.field).toLowerCase().includes(search);
+      matches.set(node.id, !search || ownMatch || childMatches);
+      return matches.get(node.id);
+    };
+    match(columnPickerTree);
+    const render = node => {
+      if (!matches.get(node.id)) return '';
+      if (!node.children.size) return row(node.field,escHTML(node.name));
+      const open=Boolean(search) || expandedColumnNodes.has(node.id);
+      return `<div class="column-tree-node">
+        <div class="column-picker-row">
+          <button class="column-tree-toggle" data-column-node="${escAttr(node.id)}" aria-expanded="${open}" aria-label="${open?'Collapse':'Expand'} ${escAttr(node.name)}">${open?'▾':'▸'}</button>
+          <input type="checkbox" class="col-check" data-column-group="${escAttr(node.id)}" aria-label="Select all fields in ${escAttr(node.name)}">
+          <span class="column-picker-name" data-column-node="${escAttr(node.id)}">${escHTML(node.name)}</span><span class="column-picker-type">${escHTML(node.field ? fields[node.field].type : 'object')} · ${node.targets.length} fields</span>
+        </div>
+        ${open ? '<div class="column-tree-children">' +
+          (node.field && (!search || fieldLabel(node.field).toLowerCase().includes(search)) ? row(node.field,'Whole value (JSON)') : '') +
+          [...node.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(render).join('') + '</div>' : ''}
+      </div>`;
+    };
+    body.innerHTML=[...columnPickerTree.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(render).join('');
+    body.querySelectorAll('[data-column-group]').forEach(input => {
+      const targets=columnPickerNodes.get(input.dataset.columnGroup).targets;
+      const count=targets.filter(c => pendingColumns.includes(c)).length;
+      input.checked=count === targets.length;
+      input.indeterminate=count > 0 && count < targets.length;
+    });
+  }
+  if (!body.innerHTML) body.innerHTML='<div class="column-picker-empty">No matching fields. Load logs or change the search.</div>';
+  body.scrollTop=scrollTop;
+  body.onchange=e => {
+    if (e.target.dataset.columnField !== undefined) togglePendingCol(e.target.dataset.columnField,e.target.checked);
+    else if (e.target.dataset.columnGroup !== undefined) updatePendingColumns(columnPickerNodes.get(e.target.dataset.columnGroup).targets,e.target.checked);
+  };
+  body.onclick=e => {
+    const field=e.target.closest('[data-picker-select]');
+    if (field) { togglePendingCol(field.dataset.pickerSelect,!pendingColumns.includes(field.dataset.pickerSelect)); return; }
+    const button=e.target.closest('[data-column-node]');
+    if (!button) return;
+    const id=button.dataset.columnNode;
+    if (expandedColumnNodes.has(id)) expandedColumnNodes.delete(id); else expandedColumnNodes.add(id);
+    renderColumnPicker();
+  };
+  if (columnPickerView === 'list') {
+    body.querySelectorAll('[data-reorder-field]').forEach(item => {
+      bindColumnReorder(item.querySelector('.column-drag'),item.dataset.reorderField, {
+        axis:'y',root:body,container:body,order:() => pendingColumns,
+        commit:next => { pendingColumns=next; previewColumns(); renderColumnPicker(); }
+      });
+    });
+  }
+}
+
+function updatePendingColumns(targets,on) {
+  const next=on ? [...new Set([...pendingColumns,...targets])] : pendingColumns.filter(c => !targets.includes(c));
+  if (next.length > MAX_COLUMNS) toast(`Max ${MAX_COLUMNS} columns. Expand the object and select individual fields.`,true);
+  else if (!next.length && availableColumns().length) toast('Keep at least one column visible.',true);
+  else { pendingColumns=next; previewColumns(); }
+  renderColumnPicker();
+}
+function togglePendingCol(field,on) { updatePendingColumns([field],on); }
+function previewColumns() {
   visibleColumns = [...pendingColumns];
-  closeColumnPicker();
   renderTable();
 }
 
-function resetColumns() { visibleColumns = []; autoPickColumns(); closeColumnPicker(); renderTable(); }
-function closeColumnPicker() { document.getElementById('columnModal').classList.add('hidden'); }
+function applyColumns() { previewColumns(); closeColumnPicker(true); }
+function resetColumns() { pendingColumns=defaultColumns(); previewColumns(); renderColumnPicker(); }
+function closeColumnPicker(save=false) {
+  if (cancelColumnReorder) cancelColumnReorder();
+  document.getElementById('columnModal').classList.add('hidden');
+  if (columnPickerSnapshot !== null && !save) {
+    visibleColumns=columnPickerSnapshot.filter(c => Object.hasOwn(fields,c));
+    if (!visibleColumns.length) visibleColumns=defaultColumns();
+    const previous=columnPickerLayoutSnapshot;
+    columnWidths.clear();
+    previous.widths.forEach((width,field) => columnWidths.set(field,width));
+    const sortingChanged=sortField !== previous.sortField || sortDir !== previous.sortDir;
+    sortField=previous.sortField; sortDir=previous.sortDir; columnPickerView=previous.view;
+    if (sortingChanged) runQuery(); else renderTable();
+  }
+  columnPickerSnapshot=null;
+  columnPickerLayoutSnapshot=null;
+  document.getElementById('columnPickerBtn').focus();
+}
 
 // ── QUERY CHIPS ─────────────────────────────────────────────────────────────
 const PRESET_QUERIES = [
@@ -2304,10 +2800,13 @@ function exportJSON() {
 
 function exportCSV() {
   const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
-  const csvEsc = v => { const s=String(v??''); return s.includes(',')|| s.includes('"')|| s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
-  const rows = [cols.join(','), ...filteredLogs.map(l=>cols.map(c=>csvEsc(l[c]??'')).join(','))];
+  const rows = [cols.map(csvEscape).join(','), ...filteredLogs.map(l=>cols.map(c=>csvEscape(fieldText(getField(l,c)))).join(','))];
   dl(rows.join('\n'), 'loglens-export.csv', 'text/csv');
   toast(`Exported ${filteredLogs.length.toLocaleString()} logs as CSV`);
+}
+function csvEscape(value) {
+  const text = String(value ?? '');
+  return /[,"\r\n]/.test(text) ? '"' + text.replace(/"/g,'""') + '"' : text;
 }
 
 function dl(content, name, type) {
@@ -2355,12 +2854,23 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement.tagName.toLowerCase();
   const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
 
+  if (e.key === 'Tab' && !document.getElementById('columnModal').classList.contains('hidden')) {
+    const controls=[...document.getElementById('columnModal').querySelectorAll('button,input,select')].filter(el => !el.disabled);
+    const first=controls[0], last=controls.at(-1);
+    if (first && (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+      e.preventDefault(); (e.shiftKey ? last : first).focus();
+    }
+  }
+
   // Always available
   if (e.key === 'Escape') {
+    if (cancelColumnReorder) { cancelColumnReorder(); return; }
+    if (!document.getElementById('columnModal').classList.contains('hidden')) { closeColumnPicker(); return; }
     document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
     closeDetail();
     return;
   }
+  if (!document.getElementById('columnModal').classList.contains('hidden')) return;
   if (e.key === '?' && !isInput) { showKbdHelp(); return; }
 
   if (!isInput) {
@@ -2577,8 +3087,8 @@ ${JSON.stringify(sample, null, 2)}
 }
 
 function topN(logs, field, n) {
-  const cnt = {};
-  logs.forEach(l => { if (l[field]) cnt[l[field]] = (cnt[l[field]]||0)+1; });
+  const cnt = Object.create(null);
+  logs.forEach(l => { const value=fieldText(getField(l,field)); if (value) cnt[value]=(cnt[value]||0)+1; });
   return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,n);
 }
 
