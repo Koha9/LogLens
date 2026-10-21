@@ -26,7 +26,7 @@ No servers. No SaaS. No subscriptions. Just open the HTML file.
 - **KQL syntax** — `level:ERROR AND service:auth*`
 - **Boolean logic** — `AND`, `OR`, `NOT`, parentheses
 - **Ranges** — `status_code:>=500`, `latency_ms:<=100`
-- **Wildcards** — `message:*timeout*`, `src_ip:10.0.*`
+- **Wildcards** — `message:*timeout*`, `src_ip:10.0.*`; use **\* Wildcard** in the top toolbar to hide or show the KQL query panel. Hiding the panel preserves the active query and its matching behavior.
 - **Regex** — `message:/timeout|refused/i`, `src_ip:/^192\.168\./`
 - **Free text search** — type anything, searches all fields
 
@@ -95,15 +95,17 @@ Powered by [Ollama](https://ollama.com), the AI panel lets you chat with your lo
 **Stop button** — abort mid-stream at any time. Partial responses are saved to context.
 
 ### 🧭 Navigation & UX
+- **Compact, square-edged UI** — denser controls and scrollable toolbars keep more space available for logs.
+- **Collapsible top toolbar** — expanded by default; use **Toolbar** at the upper right to hide or restore the logo, statistics, and controls.
 - **Keyboard-first** — `j/k` rows, `/` search, `m` bookmark, `c` copy, `d` theme, `?` help
 - **Detail panel** — Fields / Raw / JSON Tree tabs, prev/next row navigation
 - **Column picker** — choose exactly which columns to display (up to 12)
+- **Resizable columns** — drag the right edge of a column header (80px minimum); double-click to restore its default width. Focus the handle and use arrow keys to adjust, or Home to reset.
 - **Resizable panels** — drag handles on sidebar and detail panel
 - **Saved queries** — name and persist your favourite KQL queries
 - **Query history** — last 20 queries, one click to re-run
 - **Bookmarks** — star rows with `m`, filter to starred-only
 - **Export** — JSON or CSV of current filtered results
-- **Share URL** — encodes your query in `#q=…` hash, zero log data included
 - **Light / Dark theme** — persisted to localStorage
 
 ---
