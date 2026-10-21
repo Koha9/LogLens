@@ -67,10 +67,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .btn-group .btn:last-child{border-radius:0}
 /* ── TIMELINE ────────────────────────────────────────────────────────────── */
 .timeline-wrap{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);
-  padding:3px 8px;display:flex;align-items:center;gap:6px;min-width:0}
+  padding:3px 8px 7px;display:flex;align-items:center;min-width:0;position:relative}
 .timeline-wrap.hidden{display:none}
-#timelineCanvas{flex:1;min-width:0;width:0;height:54px;cursor:crosshair;border-radius:0;display:block}
-.timeline-reset{font-size:10px;padding:3px 8px}
+#timelineCanvas{flex:1;min-width:0;width:0;height:54px;cursor:crosshair;border-radius:0;display:block;touch-action:none;user-select:none}
+.timeline-reset{position:absolute;left:10px;top:5px;z-index:2;width:24px;height:24px;padding:0;font-size:16px;line-height:22px}
+.timeline-resize{position:absolute;left:0;right:0;bottom:0;height:6px;cursor:row-resize;touch-action:none;z-index:3}
+.timeline-resize:hover,.timeline-resize:focus-visible{background:var(--accent-glow);outline:1px solid var(--accent)}
+.timeline-resize::after{content:'';display:block;width:36px;height:2px;margin:2px auto;background:var(--border2)}
+.timeline-selection-label{position:absolute;top:5px;left:50%;transform:translateX(-50%);max-width:calc(100% - 80px);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--surface);border:1px solid var(--border2);
+  padding:2px 6px;font-size:10px;pointer-events:none}
+.timeline-selection-label[hidden]{display:none}
+body.resizing-timeline,body.resizing-timeline *{cursor:row-resize!important;user-select:none!important}
 /* ── KQL BAR ─────────────────────────────────────────────────────────────── */
 .kql-bar{padding:4px 8px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
 .kql-bar[hidden]{display:none}
@@ -428,7 +436,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
     <button class="btn" onclick="clearLogs()" title="Clear all logs">✕ Clear</button>
     <div class="vdiv"></div>
     <button class="btn icon" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark theme">🌙</button>
-    <button class="btn icon" id="timelineToggleBtn" onclick="toggleTimeline()" title="Toggle timeline">📊</button>
+    <button class="btn icon active" id="timelineToggleBtn" onclick="toggleTimeline()" title="Toggle timeline" aria-pressed="true" aria-controls="timelineWrap">📊</button>
     <button class="btn active" id="wildcardToggleBtn" onclick="toggleWildcard()" aria-expanded="true" aria-controls="wildcardPanel" title="Hide wildcard / KQL query panel">* Wildcard</button>
     <button class="btn icon" onclick="showKbdHelp()" title="Keyboard shortcuts (?)">⌨</button>
     <div class="vdiv"></div>
@@ -440,7 +448,9 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
 <!-- TIMELINE -->
 <div class="timeline-wrap" id="timelineWrap">
   <canvas id="timelineCanvas"></canvas>
-  <button class="btn timeline-reset" id="timelineResetBtn" onclick="resetTimeFilter()" style="display:none" title="Clear time selection">✕ Reset</button>
+  <button class="btn timeline-reset" id="timelineResetBtn" onclick="resetTimeFilter()" style="display:none" title="Reset time selection" aria-label="Reset time selection">↺</button>
+  <span class="timeline-selection-label" id="timelineSelectionLabel" hidden></span>
+  <div class="timeline-resize" id="timelineResize" role="separator" aria-orientation="horizontal" aria-label="Resize timeline height" tabindex="0" aria-valuemin="54" aria-valuemax="320" aria-valuenow="54" title="Drag to resize timeline; arrow keys to adjust; Home to reset"></div>
 </div>
 
 <!-- KQL BAR -->
@@ -762,6 +772,7 @@ let scrollRAF = null;
 let timeRange = { min: Infinity, max: -Infinity };
 let tDrag = { active: false, x0: 0, x1: 0 };
 let timelineVisible = true;
+let timelineHeight = 54;
 // Persistence
 let queryHistory = [];
 let savedQueries = [];
@@ -1981,6 +1992,7 @@ function applyCustomTime() {
 }
 
 function resetTimeFilter() {
+  if (tDrag.cancel) tDrag.cancel();
   timeFilter = {from:null,to:null,quick:null};
   renderSidebar();
   document.getElementById('timelineResetBtn').style.display = 'none';
@@ -1997,9 +2009,12 @@ function normalizeLevel(v) {
 
 // ── TIMELINE ────────────────────────────────────────────────────────────────
 function toggleTimeline() {
+  if (tDrag.cancel) tDrag.cancel();
   timelineVisible = !timelineVisible;
   document.getElementById('timelineWrap').classList.toggle('hidden', !timelineVisible);
   document.getElementById('timelineToggleBtn').classList.toggle('active', timelineVisible);
+  document.getElementById('timelineToggleBtn').setAttribute('aria-pressed', String(timelineVisible));
+  if (timelineVisible) drawTimeline();
 }
 
 function drawTimeline() {
@@ -2007,7 +2022,7 @@ function drawTimeline() {
   if (!canvas || !timelineVisible) return;
   const W = canvas.offsetWidth;
   if (W <= 0) return;
-  const H = 54;
+  const H = timelineHeight;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -2103,33 +2118,116 @@ function drawTimeline() {
 
 function initTimelineDrag() {
   const canvas = document.getElementById('timelineCanvas');
-  if (!canvas) return;
-  const getX = e => e.offsetX || (e.touches?.[0]?.clientX - canvas.getBoundingClientRect().left || 0);
-  const xToMs = x => timeRange.min + (x / canvas.offsetWidth) * (timeRange.max - timeRange.min);
-
-  canvas.addEventListener('mousedown', e => {
-    tDrag = {active:true, x0:getX(e), x1:getX(e)};
-    drawTimeline();
-  });
-  canvas.addEventListener('mousemove', e => {
+  const label = document.getElementById('timelineSelectionLabel');
+  let pointerId = null, frame = null, range = null;
+  const getX = e => {
+    const rect = canvas.getBoundingClientRect();
+    return Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  };
+  const xToMs = x => range.min + (x / canvas.getBoundingClientRect().width) * (range.max - range.min);
+  const preview = () => {
+    frame = null;
     if (!tDrag.active) return;
-    tDrag.x1 = getX(e);
+    const from = xToMs(Math.min(tDrag.x0, tDrag.x1));
+    const to = xToMs(Math.max(tDrag.x0, tDrag.x1));
+    label.textContent = new Date(from).toLocaleString() + ' → ' + new Date(to).toLocaleString() + ' · ' + fmtDuration(to - from);
     drawTimeline();
-  });
-  canvas.addEventListener('mouseup', e => {
+  };
+  const finish = (commit, e) => {
     if (!tDrag.active) return;
+    if (e) tDrag.x1 = getX(e);
     tDrag.active = false;
-    const x1 = Math.min(tDrag.x0, tDrag.x1);
-    const x2 = Math.max(tDrag.x0, tDrag.x1);
-    if (x2 - x1 < 4) { drawTimeline(); return; } // too small, ignore
-    timeFilter.from = xToMs(x1);
-    timeFilter.to = xToMs(x2);
-    timeFilter.quick = null;
-    document.getElementById('timelineResetBtn').style.display = '';
-    renderSidebar();
-    runQuery();
+    if (frame !== null) { cancelAnimationFrame(frame); frame = null; }
+    label.hidden = true;
+    const released = pointerId;
+    pointerId = null;
+    if (canvas.hasPointerCapture(released)) canvas.releasePointerCapture(released);
+    const x1 = Math.min(tDrag.x0, tDrag.x1), x2 = Math.max(tDrag.x0, tDrag.x1);
+    if (commit && x2 - x1 >= 4) {
+      timeFilter = { from: xToMs(x1), to: xToMs(x2), quick: null };
+      document.getElementById('timelineResetBtn').style.display = '';
+      renderSidebar();
+      runQuery();
+    } else drawTimeline();
+  };
+  tDrag.cancel = () => finish(false);
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || tDrag.active || !isFinite(timeRange.min) ||
+        !isFinite(timeRange.max) || timeRange.max <= timeRange.min) return;
+    e.preventDefault();
+    pointerId = e.pointerId;
+    range = { ...timeRange };
+    tDrag.active = true;
+    tDrag.x0 = tDrag.x1 = getX(e);
+    canvas.setPointerCapture(pointerId);
+    label.hidden = false;
+    preview();
   });
+  canvas.addEventListener('pointermove', e => {
+    if (!tDrag.active || e.pointerId !== pointerId) return;
+    tDrag.x1 = getX(e);
+    if (frame === null) frame = requestAnimationFrame(preview);
+  });
+  canvas.addEventListener('pointerup', e => {
+    if (e.pointerId === pointerId) finish(true, e);
+  });
+  canvas.addEventListener('pointercancel', e => {
+    if (e.pointerId === pointerId) finish(false);
+  });
+  canvas.addEventListener('lostpointercapture', e => {
+    if (e.pointerId === pointerId) finish(false);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') finish(false); });
+  window.addEventListener('blur', () => finish(false));
   canvas.addEventListener('dblclick', resetTimeFilter);
+}
+
+function setTimelineHeight(height) {
+  const maxHeight = Math.max(54, Math.min(320, Math.floor(window.innerHeight * 0.45)));
+  timelineHeight = Math.max(54, Math.min(maxHeight, Math.round(height)));
+  document.getElementById('timelineCanvas').style.height = timelineHeight + 'px';
+  const handle = document.getElementById('timelineResize');
+  handle.setAttribute('aria-valuemax', String(maxHeight));
+  handle.setAttribute('aria-valuenow', String(timelineHeight));
+  drawTimeline();
+  vsUpdate();
+}
+
+function initTimelineResize() {
+  const handle = document.getElementById('timelineResize');
+  let pointerId = null, startY = 0, startHeight = 54, frame = null, nextHeight = 54;
+  const flush = () => { frame = null; setTimelineHeight(nextHeight); };
+  const finish = e => {
+    if (pointerId === null || (e.pointerId !== undefined && e.pointerId !== pointerId)) return;
+    if (frame !== null) { cancelAnimationFrame(frame); flush(); }
+    const released = pointerId;
+    pointerId = null;
+    document.body.classList.remove('resizing-timeline');
+    if (handle.hasPointerCapture(released)) handle.releasePointerCapture(released);
+  };
+  handle.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || pointerId !== null) return;
+    e.preventDefault(); e.stopPropagation();
+    if (tDrag.cancel) tDrag.cancel();
+    pointerId = e.pointerId; startY = e.clientY; startHeight = timelineHeight;
+    handle.setPointerCapture(pointerId);
+    document.body.classList.add('resizing-timeline');
+  });
+  handle.addEventListener('pointermove', e => {
+    if (e.pointerId !== pointerId) return;
+    nextHeight = startHeight + e.clientY - startY;
+    if (frame === null) frame = requestAnimationFrame(flush);
+  });
+  ['pointerup','pointercancel','lostpointercapture'].forEach(type => handle.addEventListener(type, finish));
+  window.addEventListener('blur', finish);
+  handle.addEventListener('keydown', e => {
+    if (!['ArrowUp','ArrowDown','Home'].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    setTimelineHeight(e.key === 'Home' ? 54 : timelineHeight + (e.key === 'ArrowDown' ? 10 : -10));
+  });
+  handle.addEventListener('dblclick', () => setTimelineHeight(54));
+  window.addEventListener('resize', () => setTimelineHeight(timelineHeight));
+  setTimelineHeight(timelineHeight);
 }
 
 // ── COLUMN PICKER ───────────────────────────────────────────────────────────
@@ -2862,6 +2960,7 @@ window.addEventListener('load', () => {
   initTheme();
   loadPersistence();
   initTimelineDrag();
+  initTimelineResize();
   initResize('sidebarResize','sidebar','left');
   initResize('detailResize','detailPanel','right');
   renderChips();
