@@ -100,13 +100,13 @@ Powered by [Ollama](https://ollama.com), the AI panel lets you chat with your lo
 ### 🧭 Navigation & UX
 - **Compact, square-edged UI** — denser controls and scrollable toolbars keep more space available for logs.
 - **Collapsible top toolbar** — expanded by default; use **Toolbar** at the upper right to hide or restore the logo, statistics, and controls.
-- **Keyboard-first** — `j/k` rows, `/` search, `m` bookmark, `c` copy, `d` theme, `?` help
-- **Detail panel** — Fields / Raw / JSON Tree tabs, prev/next row navigation
+- **Keyboard-first** — `j/k` rows, `/` search, `m` bookmark, `d` theme, `?` help. Ctrl+C / Cmd+C copies selected text normally; use the detail buttons to copy a complete JSON or CSV row.
+- **Detail panel** — Fields / formatted JSON / Raw / Tree tabs, prev/next row navigation. JSON uses indentation and structural line breaks; Fields and Tree preserve multiline string values. Mixed text/JSON logs keep all events and recognize each JSON record.
 - **Column picker** — switch between a folder-style Tree and an ordered List, search paths, and choose up to 12 columns. Selected list items follow the table's left-to-right order; drag their left-hand grips to reorder. Changes preview immediately; Apply keeps them and Cancel restores the previous columns.
 - **Saved column layouts** — in Column Picker, enter a name and choose Save to store visible columns, their order and widths, row sorting, and Tree/List view in this browser. Select a saved layout and choose Load to preview it; Apply keeps it, while Cancel restores the previous layout. Reusing a name overwrites that layout. Fields absent from the current logs are skipped.
 - **Local layout files** — choose **Save File** to download the current layout as JSON, and **Load File** to preview a previously exported file. Files contain layout settings only, not log contents. Importing does not overwrite browser-saved layouts; use Save afterward if you want a browser copy.
 - **Column order** — drag a table header's grip to move it left or right, independently of the resize handle. Grips also support arrow keys. Nested paths use colored `/` separators.
-- **Resizable columns** — drag the right edge of a column header (80px minimum); double-click to restore its default width. Focus the handle and use arrow keys to adjust, or Home to reset.
+- **Resizable columns** — drag the right edge of a column header (40px minimum); double-click to restore its default width. Focus the handle and use arrow keys to adjust, or Home to reset.
 - **Resizable panels** — drag handles on sidebar and detail panel
 - **Saved queries** — name and persist your favourite KQL queries
 - **Query history** — last 20 queries, one click to re-run
@@ -191,7 +191,6 @@ xdg-open LogLens.html    # Linux
 | `/` | Focus search bar |
 | `Ctrl+Enter` | Run KQL query |
 | `m` | Bookmark selected row |
-| `c` | Copy selected row as JSON |
 | `w` | Toggle line wrap |
 | `d` | Toggle dark / light theme |
 | `t` | Toggle timeline |

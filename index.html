@@ -242,6 +242,7 @@ body.resizing-column,body.resizing-column *{cursor:col-resize!important;user-sel
 .copy-btn:focus-visible{opacity:1}
 .copy-btn:hover{color:var(--accent)}
 .raw-view{font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--text);line-height:1.6}
+.jtree-str{white-space:pre-wrap;overflow-wrap:anywhere}
 /* JSON Tree */
 .jtree-node{margin:1px 0}
 .jtree-key{color:var(--text-dim);cursor:pointer}
@@ -559,6 +560,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
     </div>
     <div class="detail-tabs">
       <button class="dtab active" data-tab="fields" onclick="switchDetailTab('fields')">Fields</button>
+      <button class="dtab" data-tab="json" onclick="switchDetailTab('json')" title="Formatted JSON">JSON</button>
       <button class="dtab" data-tab="raw" onclick="switchDetailTab('raw')">Raw</button>
       <button class="dtab" data-tab="tree" onclick="switchDetailTab('tree')">Tree</button>
     </div>
@@ -730,7 +732,6 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
         <kbd>/</kbd><span class="kbd-desc">Focus KQL search bar</span>
         <kbd>Ctrl+Enter</kbd><span class="kbd-desc">Run query</span>
         <kbd>m</kbd><span class="kbd-desc">Bookmark / mark selected row</span>
-        <kbd>c</kbd><span class="kbd-desc">Copy selected row as JSON</span>
         <kbd>w</kbd><span class="kbd-desc">Toggle line wrap</span>
         <kbd>d</kbd><span class="kbd-desc">Toggle dark / light theme</span>
         <kbd>t</kbd><span class="kbd-desc">Toggle timeline</span>
@@ -816,7 +817,7 @@ let sortField = null, sortDir = 1;
 let selectedIdx = null; // index in filteredLogs
 let detailOpen = false, detailTab = 'fields';
 let visibleColumns = [];
-const MIN_COLUMN_WIDTH = 80;
+const MIN_COLUMN_WIDTH = 40;
 const columnWidths = new Map();
 let pendingColumns = [];
 const MAX_COLUMNS = 12;
@@ -1144,6 +1145,8 @@ function parseAuto(text, detectCSV=true) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   if (!lines.length) return [];
   if (detectCSV && isAWSCSVHeaders(splitCSVLine(lines[0]))) return parseCSV(text);
+  const object=parseStructuredLog(text);
+  if (object) return [object];
   // 1. JSON array
   if (text.trimStart().startsWith('[')) {
     try { const a = JSON.parse(text); if (Array.isArray(a) && a.length) return normalizeAll(a); } catch {}
@@ -1186,16 +1189,29 @@ function gelfLevelToStr(n) {
 function tryNDJSON(lines) {
   const results = []; let fails = 0;
   for (const line of lines) {
-    if (!line.startsWith('{') && !line.startsWith('[')) { fails++; continue; }
-    try { results.push(JSON.parse(line)); } catch { fails++; }
+    const event=parseStructuredLog(line);
+    if (event) results.push(event); else fails++;
   }
-  return results.length > 0 && fails / lines.length < 0.3 ? results : null;
+  return results.length > 0 && fails === 0 ? results : null;
+}
+
+function parseStructuredLog(text) {
+  if (!text.trimStart().startsWith('{')) return null;
+  try {
+    const value=parseEventJSON(text);
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+    const event=normalizeLog(value);
+    event._raw=text;
+    return event;
+  } catch { return null; }
 }
 
 function tryLogfmt(lines) {
   const re = /(\w[\w.-]*)\s*=\s*("(?:[^"\\]|\\.)*"|\S+)/g;
   const results = []; let ok = 0;
   for (const line of lines) {
+    const structured=parseStructuredLog(line);
+    if (structured) { results.push(structured); ok++; continue; }
     const obj = {}; let m, n = 0;
     re.lastIndex = 0;
     while ((m = re.exec(line)) !== null) { obj[m[1]] = m[2].replace(/^"|"$/g,''); n++; }
@@ -1203,7 +1219,7 @@ function tryLogfmt(lines) {
     else results.push(null);
   }
   if (ok / lines.length > 0.5)
-    return results.map((r,i) => r || { line_no:i+1, message:lines[i], level:detectLevel(lines[i]) });
+    return results.map((r,i) => r || parseTextLogs([lines[i]])[0]);
   return null;
 }
 
@@ -1241,6 +1257,8 @@ function parseTextLogs(lines) {
     { re:/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(INFO|DEBUG|WARN|ERROR|FATAL|CRITICAL)\s+(.+)$/, fn:m=>({timestamp:m[1],level:m[2].toUpperCase(),message:m[3]}) },
   ];
   return lines.map((line,i) => {
+    const structured=parseStructuredLog(line);
+    if (structured) return structured;
     for (const {re,fn} of patterns) {
       try { const m = re.exec(line); if (m) { const o=fn(m); o._raw=line; return o; } } catch {}
     }
@@ -2042,7 +2060,7 @@ function renderDetail(log) {
   if (detailTab === 'fields') {
     const rows=[];
     visitLogFields(log,(path,value,hasChildren) => {
-      if (hasChildren) return;
+      if (hasChildren || path[0] === '_raw') return;
       const field=fieldId(path);
       rows.push(`<div class="detail-field">
         <div class="detail-key" title="Filter by ${escAttr(fieldLabel(field))}" data-detail-field="${escAttr(field)}">${fieldPathHTML(field)}</div>
@@ -2051,6 +2069,13 @@ function renderDetail(log) {
         </div></div>`);
     });
     scroll.innerHTML=rows.join('');
+  } else if (detailTab === 'json') {
+    let value;
+    try { value=parseEventJSON(log._raw || ''); } catch {}
+    if (value === undefined || value === null || typeof value !== 'object') {
+      value=Object.fromEntries(Object.entries(log).filter(([key]) => !['_raw','_fileId'].includes(key)));
+    }
+    scroll.innerHTML=`<pre class="raw-view">${escHTML(JSON.stringify(value,null,2))}</pre>`;
   } else if (detailTab === 'raw') {
     const raw = log._raw || JSON.stringify(log, (k,v)=>k==='_fileId'?undefined:v, 2);
     scroll.innerHTML = `<pre class="raw-view">${escHTML(raw)}</pre>`;
@@ -2069,7 +2094,7 @@ function renderDetailValue(v) {
   if (v === null) return '<span style="color:var(--text-dim);font-style:italic">null</span>';
   if (typeof v === 'number') return `<span style="color:var(--orange)">${v}</span>`;
   if (typeof v === 'boolean') return `<span style="color:var(--purple)">${v}</span>`;
-  if (typeof v === 'object') return `<span style="color:var(--text-dim)">${escHTML(JSON.stringify(v))}</span>`;
+  if (typeof v === 'object') return `<span style="color:var(--text-dim)">${escHTML(JSON.stringify(v,null,2))}</span>`;
   const s = String(v);
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return `<span style="color:var(--text-dim)">${escHTML(s)}</span>`;
   if (/^\d+\.\d+\.\d+\.\d+$/.test(s)) return `<span style="color:var(--green)">${escHTML(s)}</span>`;
@@ -2965,6 +2990,8 @@ function showKbdHelp() { document.getElementById('kbdModal').classList.remove('h
 function closeKbdHelp() { document.getElementById('kbdModal').classList.add('hidden'); }
 
 document.addEventListener('keydown', e => {
+  // Leave native selection copying to the browser; full-row copy uses buttons.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') return;
   const tag = document.activeElement.tagName.toLowerCase();
   const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
 
@@ -2995,7 +3022,6 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && selectedIdx!==null) { openDetail(filteredLogs[selectedIdx]); return; }
     if (e.key === '/') { e.preventDefault(); setWildcardPanelOpen(true); document.getElementById('kqlInput').focus(); return; }
     if (e.key === 'm') { markRow(); return; }
-    if (e.key === 'c') { copyDetailJSON(); return; }
     if (e.key === 'w') { toggleWrap(); return; }
     if (e.key === 'd') { toggleTheme(); return; }
     if (e.key === 't') { toggleTimeline(); return; }
