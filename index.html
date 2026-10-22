@@ -845,6 +845,8 @@ const SAVED_KEY = 'loglens_saved';
 const THEME_KEY = 'loglens_theme';
 const AI_OPEN_KEY = 'loglens_ai_open';
 const COLUMN_LAYOUTS_KEY = 'loglens_column_layouts_v1';
+const COLUMN_PREFERENCES_KEY = 'loglens_current_columns_v1';
+let lastColumnPreferences = '';
 
 const LEVEL_COLORS = {
   ERROR:'#ff4d6d', CRITICAL:'#ff4d6d', FATAL:'#ff4d6d',
@@ -1401,11 +1403,9 @@ function clearLogs() {
   closeDetail();
   document.getElementById('detailScroll').innerHTML = '';
   allLogs=[]; filteredLogs=[]; fields={}; files=[]; markedRows.clear();
-  activeLevels.clear(); selectedIdx=null; sortField=null; sortDir=1;
+  activeLevels.clear(); selectedIdx=null;
   timeFilter={from:null,to:null,quick:null}; timeRange={min:Infinity,max:-Infinity};
-  visibleColumns=[]; document.getElementById('logHead').innerHTML='';
-  document.getElementById('logBody').innerHTML='';
-  document.getElementById('emptyState').classList.remove('hidden');
+  renderTable();
   renderSidebar(); updateStats(); drawTimeline();
   document.getElementById('uploadOverlay').style.display = 'flex';
 }
@@ -1436,7 +1436,6 @@ function rebuildFields() {
 }
 
 function autoPickColumns() {
-  visibleColumns = visibleColumns.filter(c => Object.hasOwn(fields, c));
   if (visibleColumns.length) return; // user already picked
   visibleColumns = defaultColumns();
 }
@@ -1739,6 +1738,7 @@ function getDefaultCols() {
 }
 
 function renderTable() {
+  persistColumnPreferences();
   const cols = visibleColumns.length ? visibleColumns : getDefaultCols();
   const head = document.getElementById('logHead');
   const empty = document.getElementById('emptyState');
@@ -1794,6 +1794,32 @@ function applyColumnWidths(cols, scrollLeft = document.getElementById('logScroll
   document.getElementById('logScroll').scrollLeft = scrollLeft;
 }
 
+function persistColumnPreferences() {
+  // Persist the committed layout, not a temporary picker preview.
+  const columns=columnPickerSnapshot || visibleColumns;
+  if (!columns.length) return;
+  const previous=columnPickerLayoutSnapshot;
+  const layout={ name:'Last layout', columns:[...columns],
+    widths:[...(previous ? previous.widths : columnWidths)],
+    sortField:previous ? previous.sortField : sortField,
+    sortDir:previous ? previous.sortDir : sortDir,
+    view:previous ? previous.view : columnPickerView };
+  const text=JSON.stringify({version:1,layout});
+  if (text === lastColumnPreferences) return;
+  try { localStorage.setItem(COLUMN_PREFERENCES_KEY,text); lastColumnPreferences=text; } catch {}
+}
+
+function initColumnPreferences() {
+  try {
+    const saved=JSON.parse(localStorage.getItem(COLUMN_PREFERENCES_KEY) || 'null');
+    if (saved?.version !== 1 || !isValidColumnLayout(saved.layout)) return;
+    visibleColumns=[...saved.layout.columns];
+    columnWidths.clear(); saved.layout.widths.forEach(([field,width])=>columnWidths.set(field,width));
+    sortField=saved.layout.sortField; sortDir=saved.layout.sortDir;
+    columnPickerView=saved.layout.view === 'list' ? 'list' : 'tree';
+  } catch {}
+}
+
 function initColumnResize(cols) {
   const headers = document.getElementById('logHead').querySelectorAll('th');
   cols.forEach((field,i) => {
@@ -1809,12 +1835,14 @@ function initColumnResize(cols) {
     handle.addEventListener('dblclick', e => {
       e.stopPropagation();
       resize(defaultColumnWidth(field));
+      persistColumnPreferences();
     });
     handle.addEventListener('keydown', e => {
       if (!['ArrowLeft','ArrowRight','Home'].includes(e.key)) return;
       e.preventDefault(); e.stopPropagation();
       resize(e.key === 'Home' ? defaultColumnWidth(field)
         : getColumnWidth(field) + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 50 : 10));
+      persistColumnPreferences();
     });
     handle.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
@@ -1836,6 +1864,7 @@ function initColumnResize(cols) {
         handle.removeEventListener('pointercancel', finish);
         handle.removeEventListener('lostpointercapture', finish);
         document.body.classList.remove('resizing-column');
+        persistColumnPreferences();
         if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
       };
       handle.setPointerCapture(e.pointerId);
@@ -2746,7 +2775,7 @@ function applyColumnLayout(layout) {
 function buildColumnPickerTree() {
   columnPickerNodes.clear();
   const root = { children:new Map() };
-  availableColumns().forEach(field => {
+  pickerAvailableColumns().forEach(field => {
     let node=root;
     const path=fieldPath(field);
     path.forEach((part,index) => {
@@ -2778,8 +2807,11 @@ function setColumnPickerView(view) {
 }
 
 function pickerListFields() {
-  return [...pendingColumns, ...availableColumns().filter(c => !pendingColumns.includes(c))
+  return [...pendingColumns, ...pickerAvailableColumns().filter(c => !pendingColumns.includes(c))
     .sort((a,b) => fieldLabel(a).localeCompare(fieldLabel(b)))];
+}
+function pickerAvailableColumns() {
+  return [...new Set([...getDefaultCols(),...pendingColumns,...availableColumns()])];
 }
 
 function renderColumnPicker() {
@@ -2799,7 +2831,7 @@ function renderColumnPicker() {
       ${columnPickerView === 'list' ? `<button class="column-drag" ${selected?'':'disabled'} aria-label="Reorder ${escAttr(fieldLabel(field))}" title="Select a column, then drag or use arrow keys to reorder">⠿</button>` : '<span style="width:20px;flex-shrink:0"></span>'}
       <input type="checkbox" class="col-check" data-column-field="${escAttr(field)}" aria-label="Show ${escAttr(fieldLabel(field))}" ${selected?'checked':''}>
       <span class="column-picker-name" data-picker-select="${escAttr(field)}" title="${escAttr(fieldLabel(field))}">${name}</span>
-      <span class="column-picker-type">${escHTML(fields[field].type)}</span></div>`;
+      <span class="column-picker-type">${escHTML(fields[field]?.type || 'unavailable')}</span></div>`;
   };
   if (columnPickerView === 'list') {
     body.innerHTML = pickerListFields().filter(field => fieldLabel(field).toLowerCase().includes(search)).map(field => row(field)).join('');
@@ -2820,7 +2852,7 @@ function renderColumnPicker() {
         <div class="column-picker-row">
           <button class="column-tree-toggle" data-column-node="${escAttr(node.id)}" aria-expanded="${open}" aria-label="${open?'Collapse':'Expand'} ${escAttr(node.name)}">${open?'▾':'▸'}</button>
           <input type="checkbox" class="col-check" data-column-group="${escAttr(node.id)}" aria-label="Select all fields in ${escAttr(node.name)}">
-          <span class="column-picker-name" data-column-node="${escAttr(node.id)}">${escHTML(node.name)}</span><span class="column-picker-type">${escHTML(node.field ? fields[node.field].type : 'object')} · ${node.targets.length} fields</span>
+          <span class="column-picker-name" data-column-node="${escAttr(node.id)}">${escHTML(node.name)}</span><span class="column-picker-type">${escHTML(node.field ? fields[node.field]?.type || 'unavailable' : 'object')} · ${node.targets.length} fields</span>
         </div>
         ${open ? '<div class="column-tree-children">' +
           (node.field && (!search || fieldLabel(node.field).toLowerCase().includes(search)) ? row(node.field,'Whole value (JSON)') : '') +
@@ -2879,8 +2911,7 @@ function closeColumnPicker(save=false) {
   if (cancelColumnReorder) cancelColumnReorder();
   document.getElementById('columnModal').classList.add('hidden');
   if (columnPickerSnapshot !== null && !save) {
-    visibleColumns=columnPickerSnapshot.filter(c => Object.hasOwn(fields,c));
-    if (!visibleColumns.length) visibleColumns=defaultColumns();
+    visibleColumns=[...columnPickerSnapshot];
     const previous=columnPickerLayoutSnapshot;
     columnWidths.clear();
     previous.widths.forEach((width,field) => columnWidths.set(field,width));
@@ -2890,6 +2921,7 @@ function closeColumnPicker(save=false) {
   }
   columnPickerSnapshot=null;
   columnPickerLayoutSnapshot=null;
+  persistColumnPreferences();
   document.getElementById('columnPickerBtn').focus();
 }
 
@@ -3607,6 +3639,7 @@ Present numbers clearly.`);
 }
 
 window.addEventListener('load', () => {
+  initColumnPreferences();
   initTheme();
   loadPersistence();
   initTimelineDrag();
