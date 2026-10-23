@@ -444,10 +444,11 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
       <span class="upload-format">Windows Event XML</span><span class="upload-format">.evtx (guide)</span><span class="upload-format">Docker</span>
     </div>
     <div class="upload-btns">
-      <button class="btn primary" onclick="showLoadModal()">⊕ Browse Files</button>
+      <button class="btn primary" onclick="chooseLogFiles()">⊕ Browse Files</button>
       <button class="btn" onclick="showPasteModal()">⎘ Paste Text</button>
       <button class="btn" onclick="loadSampleLogs()">▶ Load Samples</button>
     </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:14px">Drop files anywhere, or press Ctrl+V / ⌘V to paste log text</div>
     <div class="upload-privacy">🔒 100% client-side · No uploads · No tracking · Works offline</div>
     <input type="file" id="fileInput" multiple accept=".json,.ndjson,.log,.txt,.csv,.out,.syslog,.cef,.leef,.gz,.xml,.evtx">
   </div>
@@ -469,7 +470,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
   </div>
   <div class="topbar-actions">
     <div class="topbar-action-group" role="group" aria-label="Log files">
-      <button class="btn" onclick="showLoadModal()" title="Load file(s)">Load</button>
+      <button class="btn" onclick="chooseLogFiles()" title="Load file(s)">Load</button>
       <button class="btn" onclick="showPasteModal()" title="Paste log text">Paste</button>
       <button class="btn" onclick="clearLogs()" title="Clear all logs">Clear</button>
     </div>
@@ -682,7 +683,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loadModalTitle">
     <div class="modal-header"><span class="modal-title" id="loadModalTitle">Load Log Files</span><button class="btn" onclick="closeLoadModal()">Close</button></div>
     <div class="modal-body">
-      <button class="btn" onclick="document.getElementById('fileInput').click()">Select Files</button>
+      <button class="btn" onclick="chooseLogFiles()">Select Files</button>
       <div id="loadFileNames" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">No files selected.</div>
       <label class="paste-clear-option"><input class="col-check" type="checkbox" id="fileClearOldLogs" checked onchange="setFileClearOldLogs(this.checked)">Clear existing logs before loading selected files</label>
     </div>
@@ -986,27 +987,41 @@ function loadSampleLogs() {
 }
 
 // ── FILE LOADING ───────────────────────────────────────────────────────────
+function chooseLogFiles() {
+  const input=document.getElementById('fileInput');
+  input.value='';
+  input.click();
+}
 document.getElementById('fileInput').addEventListener('change', e => {
   if (e.target.files.length) showLoadModal([...e.target.files]);
   e.target.value = '';
 });
 const uploadBox = document.getElementById('uploadBox');
-uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('dragover'); });
-uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
-uploadBox.addEventListener('drop', e => {
-  e.preventDefault(); e.stopPropagation(); uploadBox.classList.remove('dragover');
-  if (e.dataTransfer.files.length) showLoadModal([...e.dataTransfer.files]);
-});
-// Also support drop anywhere on page when overlay hidden
+// Handle files over the entire page, including the space around the start card.
 document.addEventListener('dragover', e => {
-  if (document.getElementById('uploadOverlay').style.display === 'none') e.preventDefault();
+  if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='copy';
+  if (document.getElementById('uploadOverlay').style.display !== 'none') uploadBox.classList.add('dragover');
+});
+document.addEventListener('dragleave', e => {
+  if (!e.relatedTarget) uploadBox.classList.remove('dragover');
 });
 document.addEventListener('drop', e => {
-  const ov = document.getElementById('uploadOverlay');
-  if (ov.style.display === 'none' && e.dataTransfer.files.length) {
-    e.preventDefault();
-    showLoadModal([...e.dataTransfer.files]);
-  }
+  uploadBox.classList.remove('dragover');
+  if (!e.dataTransfer?.files.length) return;
+  e.preventDefault();
+  showLoadModal([...e.dataTransfer.files]);
+});
+document.addEventListener('paste', e => {
+  if (e.defaultPrevented || document.getElementById('uploadOverlay').style.display === 'none') return;
+  const target=e.target;
+  if (target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName)) return;
+  if ([...document.querySelectorAll('.modal-backdrop')].some(modal=>!modal.classList.contains('hidden'))) return;
+  const text=e.clipboardData?.getData('text/plain');
+  if (!text?.trim()) return;
+  e.preventDefault();
+  showPasteModal(text);
 });
 
 function showLoadModal(selectedFiles=[]) {
@@ -1175,11 +1190,12 @@ function showEvtxGuide(filename) {
   document.getElementById('evtxModal').classList.remove('hidden');
 }
 
-function showPasteModal() {
+function showPasteModal(text) {
   try {
     const saved=localStorage.getItem(PASTE_CLEAR_OLD_LOGS_KEY);
     if (saved === 'true' || saved === 'false') pasteClearOldLogs=saved === 'true';
   } catch {}
+  if (typeof text === 'string') document.getElementById('pasteArea').value=text;
   document.getElementById('pasteClearOldLogs').checked=pasteClearOldLogs;
   document.getElementById('pasteModal').classList.remove('hidden');
   document.getElementById('pasteArea').focus();
