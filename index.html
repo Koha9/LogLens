@@ -276,6 +276,7 @@ input[type=file]{display:none}
   border-radius:0;color:var(--text);font-family:var(--mono);font-size:12px;
   padding:10px;outline:none;resize:vertical}
 .paste-textarea:focus{border-color:var(--accent)}
+.paste-clear-option{display:flex;align-items:center;gap:7px;margin-top:8px;color:var(--text);font-size:11px;cursor:pointer}
 /* ── MODALS ───────────────────────────────────────────────────────────────── */
 .modal-backdrop{position:fixed;inset:0;background:rgba(7,11,18,.8);z-index:200;
   display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -443,7 +444,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
       <span class="upload-format">Windows Event XML</span><span class="upload-format">.evtx (guide)</span><span class="upload-format">Docker</span>
     </div>
     <div class="upload-btns">
-      <button class="btn primary" onclick="document.getElementById('fileInput').click()">⊕ Browse Files</button>
+      <button class="btn primary" onclick="showLoadModal()">⊕ Browse Files</button>
       <button class="btn" onclick="showPasteModal()">⎘ Paste Text</button>
       <button class="btn" onclick="loadSampleLogs()">▶ Load Samples</button>
     </div>
@@ -468,7 +469,7 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
   </div>
   <div class="topbar-actions">
     <div class="topbar-action-group" role="group" aria-label="Log files">
-      <button class="btn" onclick="document.getElementById('fileInput').click()" title="Load file(s)">Load</button>
+      <button class="btn" onclick="showLoadModal()" title="Load file(s)">Load</button>
       <button class="btn" onclick="showPasteModal()" title="Paste log text">Paste</button>
       <button class="btn" onclick="clearLogs()" title="Clear all logs">Clear</button>
     </div>
@@ -676,12 +677,24 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
 </div>
 
 <!-- MODALS -->
+<div class="modal-backdrop hidden" id="loadModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loadModalTitle">
+    <div class="modal-header"><span class="modal-title" id="loadModalTitle">Load Log Files</span><button class="btn" onclick="closeLoadModal()">Close</button></div>
+    <div class="modal-body">
+      <button class="btn" onclick="document.getElementById('fileInput').click()">Select Files</button>
+      <div id="loadFileNames" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">No files selected.</div>
+      <label class="paste-clear-option"><input class="col-check" type="checkbox" id="fileClearOldLogs" checked onchange="setFileClearOldLogs(this.checked)">Clear existing logs before loading selected files</label>
+    </div>
+    <div class="modal-footer"><button class="btn primary" id="loadFilesBtn" onclick="loadSelectedFiles()" disabled>Load Logs</button><button class="btn" onclick="closeLoadModal()">Cancel</button></div>
+  </div>
+</div>
 <div class="modal-backdrop hidden" id="pasteModal">
   <div class="modal">
     <div class="modal-header"><span class="modal-title">⎘ Paste Log Text</span><button class="btn" onclick="closePasteModal()">✕</button></div>
     <div class="modal-body">
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Paste any log content — auto-detects format</div>
       <textarea class="paste-textarea" id="pasteArea" placeholder="Paste your logs here..."></textarea>
+      <label class="paste-clear-option"><input class="col-check" type="checkbox" id="pasteClearOldLogs" checked onchange="setPasteClearOldLogs(this.checked)">Clear existing logs before loading pasted logs</label>
     </div>
     <div class="modal-footer">
       <button class="btn primary" onclick="loadPasted()">Load Logs</button>
@@ -846,6 +859,10 @@ const THEME_KEY = 'loglens_theme';
 const AI_OPEN_KEY = 'loglens_ai_open';
 const COLUMN_LAYOUTS_KEY = 'loglens_column_layouts_v1';
 const COLUMN_PREFERENCES_KEY = 'loglens_current_columns_v1';
+const PASTE_CLEAR_OLD_LOGS_KEY = 'loglens_paste_clear_old_logs';
+let pasteClearOldLogs = true;
+const FILE_CLEAR_OLD_LOGS_KEY = 'loglens_file_clear_old_logs';
+let fileClearOldLogs = true, pendingLogFiles = [];
 let lastColumnPreferences = '';
 
 const LEVEL_COLORS = {
@@ -968,15 +985,15 @@ function loadSampleLogs() {
 
 // ── FILE LOADING ───────────────────────────────────────────────────────────
 document.getElementById('fileInput').addEventListener('change', e => {
-  [...e.target.files].forEach(readFile);
+  if (e.target.files.length) showLoadModal([...e.target.files]);
   e.target.value = '';
 });
 const uploadBox = document.getElementById('uploadBox');
 uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('dragover'); });
 uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
 uploadBox.addEventListener('drop', e => {
-  e.preventDefault(); uploadBox.classList.remove('dragover');
-  [...e.dataTransfer.files].forEach(readFile);
+  e.preventDefault(); e.stopPropagation(); uploadBox.classList.remove('dragover');
+  if (e.dataTransfer.files.length) showLoadModal([...e.dataTransfer.files]);
 });
 // Also support drop anywhere on page when overlay hidden
 document.addEventListener('dragover', e => {
@@ -984,13 +1001,42 @@ document.addEventListener('dragover', e => {
 });
 document.addEventListener('drop', e => {
   const ov = document.getElementById('uploadOverlay');
-  if (ov.style.display === 'none') {
+  if (ov.style.display === 'none' && e.dataTransfer.files.length) {
     e.preventDefault();
-    [...e.dataTransfer.files].forEach(readFile);
+    showLoadModal([...e.dataTransfer.files]);
   }
 });
 
-function readFile(file) {
+function showLoadModal(selectedFiles=[]) {
+  try {
+    const saved=localStorage.getItem(FILE_CLEAR_OLD_LOGS_KEY);
+    if (saved === 'true' || saved === 'false') fileClearOldLogs=saved === 'true';
+  } catch {}
+  if (selectedFiles.length || document.getElementById('loadModal').classList.contains('hidden')) pendingLogFiles=selectedFiles;
+  document.getElementById('fileClearOldLogs').checked=fileClearOldLogs;
+  document.getElementById('loadFileNames').textContent=pendingLogFiles.length
+    ? pendingLogFiles.map(file=>file.name).join('\n') : 'No files selected.';
+  document.getElementById('loadFilesBtn').disabled=!pendingLogFiles.length;
+  document.getElementById('loadModal').classList.remove('hidden');
+}
+function setFileClearOldLogs(checked) {
+  fileClearOldLogs=Boolean(checked);
+  try { localStorage.setItem(FILE_CLEAR_OLD_LOGS_KEY,String(fileClearOldLogs)); } catch {}
+}
+function closeLoadModal() {
+  pendingLogFiles=[];
+  document.getElementById('loadModal').classList.add('hidden');
+}
+function loadSelectedFiles() {
+  if (!pendingLogFiles.length) return;
+  setFileClearOldLogs(document.getElementById('fileClearOldLogs').checked);
+  const selected=[...pendingLogFiles];
+  const batch={clearOld:fileClearOldLogs,cleared:false};
+  closeLoadModal();
+  selected.forEach(file=>readFile(file,batch));
+}
+
+function readFile(file, batch=null) {
   const ext = file.name.split('.').pop().toLowerCase();
 
   // .evtx is binary — detect magic bytes then show conversion guide
@@ -1035,10 +1081,12 @@ function readFile(file) {
         .filter(Boolean);
     }
     if (!parsed.length) { toast(`⚠ ${file.name} is empty`, true); return; }
+    if (batch?.clearOld && !batch.cleared) { clearLogs(); batch.cleared=true; }
     ingestLogs(parsed, file.name, file.size);
     hideOverlay();
     toast(`Loaded ${parsed.length.toLocaleString()} logs from ${file.name}`);
   };
+  reader.onerror=() => toast(`Could not read ${file.name}`,true);
   reader.readAsText(file);
 }
 
@@ -1125,7 +1173,19 @@ function showEvtxGuide(filename) {
   document.getElementById('evtxModal').classList.remove('hidden');
 }
 
-function showPasteModal() { document.getElementById('pasteModal').classList.remove('hidden'); document.getElementById('pasteArea').focus(); }
+function showPasteModal() {
+  try {
+    const saved=localStorage.getItem(PASTE_CLEAR_OLD_LOGS_KEY);
+    if (saved === 'true' || saved === 'false') pasteClearOldLogs=saved === 'true';
+  } catch {}
+  document.getElementById('pasteClearOldLogs').checked=pasteClearOldLogs;
+  document.getElementById('pasteModal').classList.remove('hidden');
+  document.getElementById('pasteArea').focus();
+}
+function setPasteClearOldLogs(checked) {
+  pasteClearOldLogs=Boolean(checked);
+  try { localStorage.setItem(PASTE_CLEAR_OLD_LOGS_KEY,String(pasteClearOldLogs)); } catch {}
+}
 function closePasteModal() { document.getElementById('pasteModal').classList.add('hidden'); }
 function loadPasted() {
   const text = document.getElementById('pasteArea').value.trim();
@@ -1133,6 +1193,8 @@ function loadPasted() {
   let parsed = parseAuto(text);
   if (!parsed.length) parsed = text.split('\n').map((l,i) => l.trim() ? {line_no:i+1,message:l.trim(),level:detectLevel(l),_raw:l} : null).filter(Boolean);
   if (!parsed.length) { toast('Could not parse pasted text', true); return; }
+  setPasteClearOldLogs(document.getElementById('pasteClearOldLogs').checked);
+  if (pasteClearOldLogs) clearLogs();
   ingestLogs(parsed, 'pasted-text', text.length);
   closePasteModal();
   hideOverlay();
