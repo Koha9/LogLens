@@ -79,9 +79,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13
 .timeline-resize{position:absolute;left:0;right:0;bottom:0;height:6px;cursor:row-resize;touch-action:none;z-index:3}
 .timeline-resize:hover,.timeline-resize:focus-visible{background:var(--accent-glow);outline:1px solid var(--accent)}
 .timeline-resize::after{content:'';display:block;width:36px;height:2px;margin:2px auto;background:var(--border2)}
-.timeline-selection-label{position:absolute;top:5px;left:50%;transform:translateX(-50%);max-width:calc(100% - 80px);
+.timeline-selection-label{position:absolute;top:5px;left:0;max-width:calc(100% - 40px);z-index:2;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--surface);border:1px solid var(--border2);
-  padding:2px 6px;font-size:10px;pointer-events:none}
+  padding:2px 6px;font-size:11px;pointer-events:none}
 .timeline-selection-label[hidden]{display:none}
 body.resizing-timeline,body.resizing-timeline *{cursor:row-resize!important;user-select:none!important}
 /* ── KQL BAR ─────────────────────────────────────────────────────────────── */
@@ -488,9 +488,10 @@ kbd{background:var(--surface3);border:1px solid var(--border2);border-radius:0;
 
 <!-- TIMELINE -->
 <div class="timeline-wrap" id="timelineWrap">
-  <canvas id="timelineCanvas"></canvas>
+  <canvas id="timelineCanvas" title="Drag to select; drag the selection to move; drag its edges to resize. Shift-drag creates a new selection."></canvas>
   <button class="btn timeline-reset" id="timelineResetBtn" onclick="resetTimeFilter()" style="display:none" title="Reset time selection" aria-label="Reset time selection">↺</button>
-  <span class="timeline-selection-label" id="timelineSelectionLabel" hidden></span>
+  <span class="timeline-selection-label" id="timelineSelectionStart" hidden></span>
+  <span class="timeline-selection-label" id="timelineSelectionEnd" hidden></span>
   <div class="timeline-resize" id="timelineResize" role="separator" aria-orientation="horizontal" aria-label="Resize timeline height" tabindex="0" aria-valuemin="54" aria-valuemax="320" aria-valuenow="54" title="Drag to resize timeline; arrow keys to adjust; Home to reset"></div>
 </div>
 
@@ -850,6 +851,7 @@ let timeRange = { min: Infinity, max: -Infinity };
 let tDrag = { active: false, x0: 0, x1: 0 };
 let timelineVisible = true;
 let timelineHeight = 54;
+let timelineHistogram = null;
 // Persistence
 let queryHistory = [];
 let savedQueries = [];
@@ -1461,6 +1463,8 @@ function removeFile(fileId) {
 }
 
 function clearLogs() {
+  if (tDrag.cancel) tDrag.cancel();
+  timelineHistogram=null;
   if (columnPickerSnapshot !== null) closeColumnPicker();
   closeDetail();
   document.getElementById('detailScroll').innerHTML = '';
@@ -1543,6 +1547,8 @@ function defaultColumns() {
 }
 
 function rebuildTimeRange() {
+  if (tDrag.cancel) tDrag.cancel();
+  timelineHistogram=null;
   timeRange = { min:Infinity, max:-Infinity };
   allLogs.forEach(l => {
     const t = parseTimestamp(l);
@@ -2464,12 +2470,64 @@ function toggleTimeline() {
   if (timelineVisible) drawTimeline();
 }
 
+function timelineTimestamp(time, full=true, milliseconds=true) {
+  const date=new Date(time), pad=(n,width=2)=>String(n).padStart(width,'0');
+  const clock=`${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    (milliseconds ? '.'+pad(date.getMilliseconds(),3) : '');
+  return (full ? `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ` : '')+clock;
+}
+
+function timelineTicks(min,max,width,measure) {
+  if (!(max>min) || width<=0) return [];
+  const dates=new Date(min).toDateString() !== new Date(max).toDateString();
+  const label=t=>timelineTimestamp(t,dates,max-min<10000);
+  const gap=12, labelWidth=Math.max(measure(label(min)),measure(label(max)));
+  const target=(max-min)/Math.max(1,Math.floor(width/(labelWidth+gap)));
+  const steps=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,15000,30000,60000,120000,300000,
+    600000,900000,1800000,3600000,7200000,10800000,21600000,43200000,86400000,172800000,604800000,2592000000,31536000000];
+  const step=steps.find(s=>s>=target) || Math.ceil(target/31536000000)*31536000000;
+  const bounds=(time,x)=>{
+    const text=label(time), w=measure(text);
+    const left=Math.max(0,Math.min(width-w,x-w/2));
+    return {time,x,label:text,left,right:left+w};
+  };
+  const first=bounds(min,0), last=bounds(max,width), ticks=[first];
+  if (first.right+gap>last.left) return ticks;
+  for (let time=Math.ceil(min/step)*step;time<max;time+=step) {
+    if (time<=min) continue;
+    const tick=bounds(time,(time-min)/(max-min)*width);
+    if (tick.left>=ticks.at(-1).right+gap && tick.right+gap<=last.left) ticks.push(tick);
+  }
+  ticks.push(last);
+  return ticks;
+}
+
+function timelineSelection() {
+  if (timeFilter.from === null && timeFilter.to === null) return null;
+  const from=Math.max(timeRange.min,timeFilter.from ?? timeRange.min);
+  const to=Math.min(timeRange.max,timeFilter.to ?? timeRange.max);
+  return to>from ? {from,to} : null;
+}
+
+function adjustTimelineSelection(mode,initial,origin,point,min,max,minWidth) {
+  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
+  if (mode === 'move') {
+    const width=initial.to-initial.from;
+    const from=clamp(initial.from+point-origin,min,max-width);
+    return {from,to:from+width};
+  }
+  if (mode === 'start') return {from:clamp(initial.from+point-origin,min,initial.to-minWidth),to:initial.to};
+  if (mode === 'end') return {from:initial.from,to:clamp(initial.to+point-origin,initial.from+minWidth,max)};
+  return {from:Math.round(Math.min(origin,point)),to:Math.round(Math.max(origin,point))};
+}
+
 function drawTimeline() {
   const canvas = document.getElementById('timelineCanvas');
   if (!canvas || !timelineVisible) return;
   const W = canvas.offsetWidth;
   if (W <= 0) return;
   const H = timelineHeight;
+  const plotH=H-18;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -2491,14 +2549,19 @@ function drawTimeline() {
   const tMin = timeRange.min, tMax = timeRange.max;
   const binSize = (tMax - tMin) / BINS || 1;
 
-  const bins = Array.from({length:BINS}, ()=>({CRITICAL:0,ERROR:0,WARN:0,INFO:0,DEBUG:0,TRACE:0,total:0}));
-  for (const log of allLogs) {
-    const t = parseTimestamp(log);
-    if (!t || !isFinite(t)) continue;
-    const bi = Math.min(BINS-1, Math.floor((t-tMin)/binSize));
-    const lv = normalizeLevel(log.level||log.Level||log.severity||'INFO');
-    bins[bi][lv] = (bins[bi][lv]||0)+1;
-    bins[bi].total++;
+  let bins=timelineHistogram?.logs === allLogs && timelineHistogram.min === tMin && timelineHistogram.max === tMax && timelineHistogram.count === BINS
+    ? timelineHistogram.bins : null;
+  if (!bins) {
+    bins=Array.from({length:BINS}, ()=>({CRITICAL:0,ERROR:0,WARN:0,INFO:0,DEBUG:0,TRACE:0,total:0}));
+    for (const log of allLogs) {
+      const t = parseTimestamp(log);
+      if (!t || !isFinite(t)) continue;
+      const bi = Math.max(0,Math.min(BINS-1, Math.floor((t-tMin)/binSize)));
+      const lv = normalizeLevel(log.level||log.Level||log.severity||'INFO');
+      bins[bi][lv] = (bins[bi][lv]||0)+1;
+      bins[bi].total++;
+    }
+    timelineHistogram={logs:allLogs,min:tMin,max:tMax,count:BINS,bins};
   }
 
   const maxBin = Math.max(...bins.map(b=>b.total), 1);
@@ -2509,17 +2572,17 @@ function drawTimeline() {
   // Grid
   ctx.strokeStyle = isLight ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)';
   ctx.lineWidth = 1;
-  for (let y = H*0.25; y < H; y += H*0.25) {
+  for (let y = plotH*0.25; y < plotH; y += plotH*0.25) {
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
   }
 
   // Bars (in filtered vs unfiltered)
   for (let i = 0; i < BINS; i++) {
     if (!bins[i].total) continue;
-    let y = H - 2;
+    let y = plotH - 2;
     for (const lv of ORDER) {
       if (!bins[i][lv]) continue;
-      const bh = (bins[i][lv] / maxBin) * (H - 8);
+      const bh = (bins[i][lv] / maxBin) * (plotH - 4);
       ctx.fillStyle = COLORS[lv];
       ctx.globalAlpha = 0.85;
       ctx.fillRect(i*barW+0.5, y-bh, Math.max(1,barW-0.5), bh);
@@ -2529,104 +2592,128 @@ function drawTimeline() {
   ctx.globalAlpha = 1;
 
   // Time selection highlight
-  if (timeFilter.from || timeFilter.to) {
-    const x1 = timeFilter.from ? Math.max(0,((timeFilter.from-tMin)/(tMax-tMin))*W) : 0;
-    const x2 = timeFilter.to ? Math.min(W,((timeFilter.to-tMin)/(tMax-tMin))*W) : W;
+  const selection=tDrag.active ? tDrag.selection : timelineSelection();
+  if (selection) {
+    const x1 = Math.max(0,((selection.from-tMin)/(tMax-tMin))*W);
+    const x2 = Math.min(W,((selection.to-tMin)/(tMax-tMin))*W);
     // Dim outside selection
     ctx.fillStyle = isLight ? 'rgba(240,244,248,.65)' : 'rgba(7,11,18,.65)';
-    ctx.fillRect(0, 0, x1, H);
-    ctx.fillRect(x2, 0, W-x2, H);
+    ctx.fillRect(0, 0, x1, plotH);
+    ctx.fillRect(x2, 0, W-x2, plotH);
     // Border
     ctx.strokeStyle = isLight ? '#0077cc' : '#00d4ff';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(x1, 0, x2-x1, H);
-  }
-
-  // Drag selection in progress
-  if (tDrag.active) {
-    const x1 = Math.min(tDrag.x0, tDrag.x1);
-    const x2 = Math.max(tDrag.x0, tDrag.x1);
-    ctx.fillStyle = 'rgba(0,212,255,.1)';
-    ctx.fillRect(x1, 0, x2-x1, H);
-    ctx.strokeStyle = 'rgba(0,212,255,.5)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x1, 0, x2-x1, H);
+    ctx.strokeRect(x1, 0, x2-x1, plotH);
+    ctx.fillStyle=isLight ? '#0077cc' : '#00d4ff';
+    for (const x of [x1,x2]) ctx.fillRect(Math.max(0,Math.min(W-3,x-1.5)),Math.max(0,plotH/2-7),3,14);
   }
 
   // Time labels
   ctx.fillStyle = isLight ? '#607080' : '#5a7a94';
-  ctx.font = '9px monospace';
-  const fmt = ms => { const d=new Date(ms); return d.toLocaleDateString()+' '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); };
-  ctx.fillText(fmt(tMin), 3, H-3);
-  const endLabel = fmt(tMax);
-  ctx.fillText(endLabel, W - ctx.measureText(endLabel).width - 3, H-3);
+  ctx.font = '11px monospace';
+  for (const tick of timelineTicks(tMin,tMax,W,text=>ctx.measureText(text).width)) {
+    ctx.beginPath();ctx.moveTo(tick.x,plotH);ctx.lineTo(tick.x,plotH+4);ctx.stroke();
+    ctx.fillText(tick.label,tick.left,H-2);
+  }
 
 }
 
 function initTimelineDrag() {
-  const canvas = document.getElementById('timelineCanvas');
-  const label = document.getElementById('timelineSelectionLabel');
-  let pointerId = null, frame = null, range = null;
-  const getX = e => {
-    const rect = canvas.getBoundingClientRect();
-    return Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const canvas=document.getElementById('timelineCanvas');
+  const labels=[document.getElementById('timelineSelectionStart'),document.getElementById('timelineSelectionEnd')];
+  let pointerId=null, frame=null, range=null, initial=null, mode='create', origin=0, startX=0, moved=false;
+  const xOf=e=>{
+    const rect=canvas.getBoundingClientRect();
+    return Math.max(0,Math.min(rect.width,e.clientX-rect.left));
   };
-  const xToMs = x => range.min + (x / canvas.getBoundingClientRect().width) * (range.max - range.min);
-  const preview = () => {
-    frame = null;
-    if (!tDrag.active) return;
-    const from = xToMs(Math.min(tDrag.x0, tDrag.x1));
-    const to = xToMs(Math.max(tDrag.x0, tDrag.x1));
-    label.textContent = new Date(from).toLocaleString() + ' → ' + new Date(to).toLocaleString() + ' · ' + fmtDuration(to - from);
-    drawTimeline();
+  const modeAt=x=>{
+    const selection=timelineSelection();
+    if (!selection) return 'create';
+    const width=canvas.getBoundingClientRect().width, span=timeRange.max-timeRange.min;
+    const left=(selection.from-timeRange.min)/span*width, right=(selection.to-timeRange.min)/span*width;
+    const inside=x>left && x<right, hit=inside ? Math.min(8,(right-left)/3) : 8;
+    if (Math.abs(x-left)<=hit && Math.abs(x-left)<=Math.abs(x-right)) return 'start';
+    if (Math.abs(x-right)<=hit) return 'end';
+    return inside ? 'move' : 'create';
   };
-  const finish = (commit, e) => {
+  const cursorFor=action=>action === 'move' ? 'grab' : ['start','end'].includes(action) ? 'ew-resize' : 'crosshair';
+  const update=e=>{
+    const width=canvas.getBoundingClientRect().width;
+    if (!width) return;
+    if (mode !== 'create' && !moved && Math.abs(xOf(e)-startX)<2) { tDrag.selection={...initial}; return; }
+    moved=true;
+    const point=range.min+xOf(e)/width*(range.max-range.min);
+    const minimum=Math.min((range.max-range.min)/width,initial ? initial.to-initial.from : Infinity);
+    tDrag.selection=adjustTimelineSelection(mode,initial,origin,point,range.min,range.max,minimum);
+  };
+  const showLabels=()=>{
+    const rect=canvas.getBoundingClientRect(), parent=canvas.parentElement.getBoundingClientRect();
+    const positions=[];
+    [tDrag.selection.from,tDrag.selection.to].forEach((time,index)=>{
+      const label=labels[index];
+      label.textContent=(index ? 'End: ' : 'Start: ')+timelineTimestamp(time);
+      label.hidden=false;
+      const width=label.offsetWidth || 190;
+      const x=rect.left-parent.left+(time-range.min)/(range.max-range.min)*rect.width;
+      const left=Math.max(36,Math.min(Math.max(36,parent.width-width-4),x-width/2));
+      label.style.left=left+'px';label.style.top='5px';
+      positions.push({left,right:left+width});
+    });
+    if (positions[0].right+6>positions[1].left) labels[1].style.top='25px';
+  };
+  const preview=()=>{
+    frame=null;
     if (!tDrag.active) return;
-    if (e) tDrag.x1 = getX(e);
-    tDrag.active = false;
-    if (frame !== null) { cancelAnimationFrame(frame); frame = null; }
-    label.hidden = true;
-    const released = pointerId;
-    pointerId = null;
+    showLabels();drawTimeline();
+  };
+  const finish=(commit,e)=>{
+    if (!tDrag.active) return;
+    if (e) update(e);
+    const selected=tDrag.selection;
+    tDrag.active=false;tDrag.selection=null;
+    if (frame!==null) {cancelAnimationFrame(frame);frame=null;}
+    labels.forEach(label=>{label.hidden=true;});
+    const released=pointerId;pointerId=null;
     if (canvas.hasPointerCapture(released)) canvas.releasePointerCapture(released);
-    const x1 = Math.min(tDrag.x0, tDrag.x1), x2 = Math.max(tDrag.x0, tDrag.x1);
-    if (commit && x2 - x1 >= 4) {
-      timeFilter = { from: xToMs(x1), to: xToMs(x2), quick: null };
-      document.getElementById('timelineResetBtn').style.display = '';
-      renderSidebar();
-      runQuery();
+    canvas.style.cursor='crosshair';
+    const width=canvas.getBoundingClientRect().width;
+    const valid=mode !== 'create' || (selected.to-selected.from)/(range.max-range.min)*width>=4;
+    const changed=!initial || selected.from!==initial.from || selected.to!==initial.to;
+    if (commit && valid && changed) {
+      timeFilter={...selected,quick:null};
+      document.getElementById('timelineResetBtn').style.display='';
+      renderSidebar();runQuery();
     } else drawTimeline();
   };
-  tDrag.cancel = () => finish(false);
-  canvas.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || tDrag.active || !isFinite(timeRange.min) ||
-        !isFinite(timeRange.max) || timeRange.max <= timeRange.min) return;
+  tDrag.cancel=()=>finish(false);
+  canvas.addEventListener('pointerdown',e=>{
+    if (e.button!==0 || tDrag.active || !isFinite(timeRange.min) || !isFinite(timeRange.max) || timeRange.max<=timeRange.min) return;
     e.preventDefault();
-    pointerId = e.pointerId;
-    range = { ...timeRange };
-    tDrag.active = true;
-    tDrag.x0 = tDrag.x1 = getX(e);
-    canvas.setPointerCapture(pointerId);
-    label.hidden = false;
+    const width=canvas.getBoundingClientRect().width;
+    if (!width) return;
+    range={...timeRange};initial=timelineSelection();
+    mode=e.shiftKey ? 'create' : modeAt(xOf(e));
+    origin=range.min+xOf(e)/width*(range.max-range.min);
+    startX=xOf(e);moved=false;
+    pointerId=e.pointerId;tDrag.active=true;
+    update(e);canvas.setPointerCapture(pointerId);
+    canvas.style.cursor=mode === 'move' ? 'grabbing' : cursorFor(mode);
     preview();
   });
-  canvas.addEventListener('pointermove', e => {
-    if (!tDrag.active || e.pointerId !== pointerId) return;
-    tDrag.x1 = getX(e);
-    if (frame === null) frame = requestAnimationFrame(preview);
+  canvas.addEventListener('pointermove',e=>{
+    if (!tDrag.active) {canvas.style.cursor=cursorFor(modeAt(xOf(e)));return;}
+    if (e.pointerId!==pointerId) return;
+    update(e);
+    if (frame===null) frame=requestAnimationFrame(preview);
   });
-  canvas.addEventListener('pointerup', e => {
-    if (e.pointerId === pointerId) finish(true, e);
-  });
-  canvas.addEventListener('pointercancel', e => {
-    if (e.pointerId === pointerId) finish(false);
-  });
-  canvas.addEventListener('lostpointercapture', e => {
-    if (e.pointerId === pointerId) finish(false);
-  });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') finish(false); });
-  window.addEventListener('blur', () => finish(false));
-  canvas.addEventListener('dblclick', resetTimeFilter);
+  canvas.addEventListener('pointerleave',()=>{if (!tDrag.active) canvas.style.cursor='crosshair';});
+  canvas.addEventListener('pointerup',e=>{if (e.pointerId===pointerId) finish(true,e);});
+  for (const type of ['pointercancel','lostpointercapture']) {
+    canvas.addEventListener(type,e=>{if (e.pointerId===pointerId) finish(false);});
+  }
+  document.addEventListener('keydown',e=>{if (e.key==='Escape') finish(false);});
+  window.addEventListener('blur',()=>finish(false));
+  canvas.addEventListener('dblclick',resetTimeFilter);
 }
 
 function setTimelineHeight(height) {

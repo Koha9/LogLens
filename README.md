@@ -34,6 +34,7 @@ No servers. No SaaS. No subscriptions. Just open the HTML file.
 ### 📊 Visualization
 - **Timeline histogram** — canvas-based, color-coded by log level
 - **Drag to select** a time range directly on the chart
+- **Editable time selection** — drag the selection body to move it without changing its duration, or drag either edge to adjust start/end. Endpoint timestamps appear in floating labels while editing. Shift-drag creates a new selection. Tick labels adapt to the available chart width without overlapping.
 - **Resizable timeline** — drag its bottom edge to adjust height; double-click the handle to restore the default. Selection continues outside the chart, and Esc cancels it. The floating ↺ button resets the time filter without resizing the chart.
 - **Quick time filters** — Last 5m / 30m / 1h / 6h / 24h / 7d / All
 - **Custom from/to** datetime pickers
